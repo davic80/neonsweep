@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build .app + DMG
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app bundle
+        run: ./build-app.sh
+
+      - name: Create DMG
+        run: |
+          mkdir -p dist/dmg
+          cp -R build/NeonSweep.app dist/dmg/
+          ln -s /Applications dist/dmg/Applications
+          hdiutil create -volname "NeonSweep" -srcfolder dist/dmg \
+            -ov -format UDZO "dist/NeonSweep-${GITHUB_REF_NAME}.dmg"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/NeonSweep-*.dmg
+          generate_release_notes: true
+          body: |
+            ⚠️ Unsigned build (ad-hoc). First launch: right-click → Open,
+            or run `xattr -dr com.apple.quarantine /Applications/NeonSweep.app`.

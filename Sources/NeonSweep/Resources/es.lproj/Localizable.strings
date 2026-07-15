@@ -1,0 +1,128 @@
+/* Sidebar */
+"UNINSTALLER" = "DESINSTALADOR";
+"SYSTEM JUNK" = "BASURA SISTEMA";
+"DEV JUNK" = "BASURA DEV";
+"PHOTOS" = "FOTOS";
+"// no telemetry\n// nothing deleted without asking" = "// sin telemetría\n// nada se borra sin confirmar";
+"[ RECLAIMED ]" = "[ RECUPERADO ]";
+"→ trash" = "→ papelera";
+"cleaned today" = "limpiado hoy";
+"cleaned total" = "limpiado total";
+
+/* Dashboard */
+"[ SCANNING… ]" = "[ ESCANEANDO… ]";
+"[ RESCAN ]" = "[ RE-ESCANEAR ]";
+"USED" = "USADO";
+"PURGEABLE" = "PURGABLE";
+"FREE" = "LIBRE";
+"On this Mac" = "En este Mac";
+"Free in the cloud" = "Libre en la nube";
+"// local iCloud Drive files, evictable if you enable Optimize Mac Storage" = "// ficheros locales de iCloud Drive, evictables si activas Optimizar Almacenamiento";
+"RECLAIMABLE" = "RECUPERABLE";
+"computing…" = "calculando…";
+"space you could free" = "espacio que podrías liberar";
+"DETECTED TARGETS" = "OBJETIVOS DETECTADOS";
+"press RESCAN to start" = "pulsa RE-ESCANEAR para empezar";
+"User caches" = "Cachés de usuario";
+"Trash" = "Papelera";
+"iOS backups" = "Backups de iOS";
+"iOS Simulators" = "Simuladores iOS";
+"npm cache" = "Caché npm";
+"cargo cache" = "Caché cargo";
+"gradle cache" = "Caché gradle";
+"Installers (.dmg/.pkg)" = "Instaladores (.dmg/.pkg)";
+
+/* Desinstalador */
+"app name…" = "nombre de app…";
+"reading /Applications …" = "leyendo /Applications …";
+"Running" = "En ejecución";
+"apps // Apple (SIP) excluded" = "apps // Apple (SIP) excluidas";
+"[ RUNNING — quit it first ]" = "[ EN EJECUCIÓN — ciérrala antes ]";
+"searching leftovers in ~/Library" = "buscando restos en ~/Library";
+"pick an app to see everything it leaves on your disk" = "elige una app para ver todo lo que deja en tu disco";
+"name?" = "¿nombre?";
+"Matches by name only — review before checking" = "Coincide solo por nombre — revísalo antes de marcar";
+"checked =" = "marcados =";
+"[ MOVE TO TRASH ]" = "[ MOVER A PAPELERA ]";
+"Move %d items (%@) to the Trash?" = "¿Mover %d elementos (%@) a la Papelera?";
+"Move to Trash" = "Mover a Papelera";
+"Cancel" = "Cancelar";
+"Everything goes to the macOS Trash: you can restore it from Finder." = "Todo va a la Papelera de macOS: puedes restaurarlo desde Finder.";
+"Application" = "Aplicación";
+"OK: %d items → Trash (%@)" = "OK: %d elementos → Papelera (%@)";
+"WARN: could not move: %@" = "AVISO: no se pudieron mover: %@";
+"WARN: %d items could not be moved (in use?)" = "AVISO: %d elementos no se pudieron mover (¿en uso?)";
+
+/* Basura genérica */
+"scanning %@…" = "escaneando %@…";
+"[all]" = "[todo]";
+"nothing to clean here" = "nada que limpiar aquí";
+"USER CACHES" = "CACHÉS DE USUARIO";
+"they regenerate on their own; open apps may recreate them instantly" = "se regeneran solos; apps abiertas pueden recrearlos al momento";
+"old diagnostics; safe to delete" = "diagnósticos antiguos; seguros de borrar";
+"iOS BACKUPS" = "BACKUPS DE iOS";
+"local iPhone/iPad backups — make sure you have an iCloud copy first" = "copias locales de iPhone/iPad — comprueba que tienes copia en iCloud antes";
+"INSTALLERS IN DOWNLOADS" = "INSTALADORES EN DESCARGAS";
+".dmg / .pkg / .iso already installed" = ".dmg / .pkg / .iso ya instalados";
+"SAVED APP STATE" = "ESTADO GUARDADO DE APPS";
+"saved windows of closed apps; regenerates" = "ventanas guardadas de apps cerradas; se regenera";
+"last backup %@" = "último backup %@";
+"intermediate builds per project; Xcode regenerates them when building" = "builds intermedios por proyecto; Xcode los regenera al compilar";
+"symbols for every iOS version you plugged in; only your current iPhone's is needed" = "símbolos de cada versión de iOS que conectaste; solo hace falta la de tu iPhone actual";
+"iOS SIMULATORS" = "SIMULADORES iOS";
+"simulated devices and their data; recreating one from Xcode is free" = "dispositivos simulados con sus datos; recrear uno desde Xcode es gratis";
+"WARNING: this deletes ALL your local images and containers — prefer `docker system prune` to trim" = "OJO: esto borra TODAS tus imágenes y contenedores locales — mejor `docker system prune` para podar";
+"PACKAGE MANAGER CACHES" = "CACHÉS DE GESTORES DE PAQUETES";
+"npm/pip/brew/etc. will re-download if needed" = "npm/pip/brew/etc. se lo vuelven a descargar si hace falta";
+"FORGOTTEN NODE_MODULES" = "NODE_MODULES OLVIDADOS";
+"project dependencies; `npm install` recreates them — check the project date" = "dependencias de proyectos; `npm install` las recrea — revisa la fecha del proyecto";
+"project modified %@" = "proyecto modificado %@";
+"Docker Desktop (data)" = "Docker Desktop (datos)";
+"OrbStack (data)" = "OrbStack (datos)";
+
+/* Papelera */
+"[ TRASH ]" = "[ PAPELERA ]";
+"empty" = "vacía";
+"[ REVIEW ]" = "[ REVISAR ]";
+"[ EMPTY ]" = "[ VACIAR ]";
+"[ EMPTYING… ]" = "[ VACIANDO… ]";
+"Irreversible: permanently deletes everything in the Trash" = "Irreversible: borra definitivamente todo lo que hay en la Papelera";
+"Empty the Trash (%@)?" = "¿Vaciar la Papelera (%@)?";
+"Empty permanently" = "Vaciar definitivamente";
+"This PERMANENTLY deletes everything in the Trash, including items NeonSweep didn't put there. It cannot be undone." = "Esto borra DEFINITIVAMENTE todo lo que hay en la Papelera, incluido lo que no puso NeonSweep. No se puede deshacer.";
+"OK: Trash emptied — %@ truly freed" = "OK: Papelera vaciada — %@ liberados de verdad";
+"WARN: could not empty (%@)" = "AVISO: no se pudo vaciar (%@)";
+
+/* Fotos */
+"[ ANALYZE LIBRARY ]" = "[ ANALIZAR LIBRERÍA ]";
+"[ ANALYZING… ]" = "[ ANALIZANDO… ]";
+"NO ACCESS" = "SIN ACCESO";
+"Grant Photos access in System Settings → Privacy → Photos" = "Concede acceso a Fotos en Ajustes del Sistema → Privacidad → Fotos";
+"PHOTOS ACCESS" = "ACCESO A FOTOS";
+"NeonSweep needs to read your library to find duplicates and huge originals. Nothing is deleted without your confirmation; deletions go to \"Recently Deleted\" (recoverable for 30 days)." = "NeonSweep necesita leer tu librería para buscar duplicados y originales enormes. Nada se borra sin tu confirmación; lo eliminado va a \"Eliminado recientemente\" (30 días recuperable).";
+"[ GRANT ACCESS & ANALYZE ]" = "[ CONCEDER ACCESO Y ANALIZAR ]";
+"reading library (%d items)…" = "leyendo librería (%d elementos)…";
+"analyzing %d/%d…" = "analizando %d/%d…";
+"DUPLICATES & SIMILAR — %d groups" = "DUPLICADOS Y SIMILARES — %d grupos";
+"no groups detected (or not analyzed yet)" = "sin grupos detectados (o aún sin analizar)";
+"EXACT" = "EXACTOS";
+"SIMILAR" = "SIMILARES";
+"%d photos // %@" = "%d fotos // %@";
+"… and %d more groups — clean these first and re-analyze" = "… y %d grupos más — limpia estos primero y re-analiza";
+"BEST" = "MEJOR";
+"[x] delete" = "[x] borrar";
+"BIG VIDEOS (>100 MB) — %d" = "VÍDEOS GRANDES (>100 MB) — %d";
+"none" = "ninguno";
+"recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted" = "recomprime a HEVC manteniendo resolución; el original queda 30 días en Eliminado recientemente";
+"[ RECOMPRESS SELECTED → HEVC ]" = "[ RECOMPRIMIR MARCADOS → HEVC ]";
+"RAW PHOTOS — %d" = "FOTOS RAW — %d";
+"convert to HEIC (~90% quality, huge savings); the original stays 30 days in Recently Deleted" = "convierte a HEIC (~90% calidad, ahorro enorme); el original queda 30 días en Eliminado recientemente";
+"[ CONVERT SELECTED → HEIC ]" = "[ CONVERTIR MARCADOS → HEIC ]";
+"[ WORKING… ]" = "[ TRABAJANDO… ]";
+"recompressing %d/%d…" = "recomprimiendo %d/%d…";
+"converting %d/%d…" = "convirtiendo %d/%d…";
+"OK: %d optimized, %d skipped — %@ saved (original in Recently Deleted)" = "OK: %d optimizados, %d omitidos — %@ ahorrados (original en Eliminado recientemente)";
+"OK: %d photos → Recently Deleted (%@)" = "OK: %d fotos → Eliminado recientemente (%@)";
+"WARN: %@" = "AVISO: %@";
+"[ DELETE FROM PHOTOS ]" = "[ ELIMINAR DE FOTOS ]";
+"macOS asks for confirmation; goes to \"Recently Deleted\" (30 days)" = "macOS pide confirmación; va a \"Eliminado recientemente\" (30 días)";
