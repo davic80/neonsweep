@@ -8,13 +8,20 @@ struct InstalledApp: Identifiable, Hashable {
     let name: String
     let bundleID: String
     let path: String
-    var size: Int64 = 0
+    var appSize: Int64 = -1     // -1 = calculando
+    var dataSize: Int64 = -1    // estimación rápida de datos en ~/Library
+    var hasLoginItem = false    // tiene LaunchAgent → arranca al iniciar sesión
+
+    var totalSize: Int64 { max(0, appSize) + max(0, dataSize) }
+    var sized: Bool { appSize >= 0 && dataSize >= 0 }
 
     var icon: NSImage { NSWorkspace.shared.icon(forFile: path) }
     var isRunning: Bool {
         NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == bundleID }
     }
 }
+
+enum AppSortKey { case name, size, running }
 
 enum MatchKind { case appBundle, bundleID, name }
 
@@ -32,6 +39,7 @@ struct LeftoverFile: Identifiable {
 final class UninstallerModel: ObservableObject {
     @Published var apps: [InstalledApp] = []
     @Published var search = ""
+    @Published var sortKey: AppSortKey = .name
     @Published var selectedApp: InstalledApp?
     @Published var leftovers: [LeftoverFile] = []
     @Published var checked: Set<UUID> = []
@@ -40,8 +48,22 @@ final class UninstallerModel: ObservableObject {
     @Published var lastResult: String?
 
     var filteredApps: [InstalledApp] {
-        guard !search.isEmpty else { return apps }
-        return apps.filter { $0.name.localizedCaseInsensitiveContains(search) }
+        var list = apps
+        if !search.isEmpty {
+            list = list.filter { $0.name.localizedCaseInsensitiveContains(search) }
+        }
+        switch sortKey {
+        case .name:
+            return list
+        case .size:
+            return list.sorted { $0.totalSize > $1.totalSize }
+        case .running:
+            return list.sorted {
+                if $0.isRunning != $1.isRunning { return $0.isRunning }
+                if $0.hasLoginItem != $1.hasLoginItem { return $0.hasLoginItem }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
     }
 
     var checkedSize: Int64 {
@@ -75,7 +97,52 @@ final class UninstallerModel: ObservableObject {
             let found = await Task.detached(priority: .userInitiated) { Self.scanApps() }.value
             self.apps = found
             self.loadingApps = false
+            self.computeSizes()
         }
+    }
+
+    /// Tamaños (bundle + datos) y LaunchAgents, en segundo plano y progresivo.
+    private func computeSizes() {
+        let snapshot = apps
+        Task.detached(priority: .utility) {
+            let agents = Self.launchAgentNames()
+            for app in snapshot {
+                let appSize = ScanModel.directorySize(URL(fileURLWithPath: app.path))
+                let dataSize = Self.quickDataSize(bundleID: app.bundleID)
+                let login = agents.contains { $0.contains(app.bundleID.lowercased()) }
+                await MainActor.run {
+                    if let idx = self.apps.firstIndex(where: { $0.id == app.id }) {
+                        self.apps[idx].appSize = appSize
+                        self.apps[idx].dataSize = dataSize
+                        self.apps[idx].hasLoginItem = login
+                    }
+                }
+            }
+        }
+    }
+
+    /// Estimación rápida de datos: solo rutas exactas por bundle ID (sin listar).
+    nonisolated static func quickDataSize(bundleID bid: String) -> Int64 {
+        let fm = FileManager.default
+        var total: Int64 = 0
+        for p in ["\(home)/Library/Application Support/\(bid)",
+                  "\(home)/Library/Caches/\(bid)",
+                  "\(home)/Library/Containers/\(bid)"] {
+            if fm.fileExists(atPath: p) {
+                total += ScanModel.directorySize(URL(fileURLWithPath: p))
+            }
+        }
+        let plist = "\(home)/Library/Preferences/\(bid).plist"
+        total += (try? fm.attributesOfItem(atPath: plist))?[.size] as? Int64 ?? 0
+        return total
+    }
+
+    nonisolated static func launchAgentNames() -> [String] {
+        var names: [String] = []
+        for dir in ["\(home)/Library/LaunchAgents", "/Library/LaunchAgents", "/Library/LaunchDaemons"] {
+            names += ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).map { $0.lowercased() }
+        }
+        return names
     }
 
     nonisolated static func scanApps() -> [InstalledApp] {

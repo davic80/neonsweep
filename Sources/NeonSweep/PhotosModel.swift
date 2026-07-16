@@ -14,10 +14,17 @@ struct PhotoAsset: Identifiable {
     var isRaw: Bool = false
 }
 
+/// Nivel de parecido dentro de un grupo (según la peor distancia interna).
+enum DupeTier {
+    case exact      // duplicadas (~100%)
+    case near       // casi duplicadas (~90%)
+    case similar    // misma escena / ráfaga
+}
+
 struct DupeGroup: Identifiable {
     let id = UUID()
     var members: [PhotoAsset]
-    var exact: Bool           // true = duplicados casi idénticos; false = similares
+    var tier: DupeTier
     var bestID: String        // el que conviene conservar (mayor resolución/tamaño)
     var totalSize: Int64 { members.map(\.fileSize).reduce(0, +) }
 }
@@ -37,8 +44,9 @@ final class PhotosModel: ObservableObject {
     @Published var lastResult: String?
 
     // Umbrales de distancia entre huellas visuales de Vision
-    private static let exactThreshold: Float = 0.25
-    private static let similarThreshold: Float = 0.80
+    private static let exactThreshold: Float = 0.25    // duplicadas
+    private static let nearThreshold: Float = 0.55     // casi duplicadas
+    private static let similarThreshold: Float = 0.80  // similares (une el grupo)
     private static let windowSize = 8           // comparar con los N vecinos temporales
     private nonisolated static let bigVideoMinBytes: Int64 = 100_000_000
 
@@ -99,7 +107,7 @@ final class PhotosModel: ObservableObject {
         var result: [DupeGroup] = []
         var window: [(PhotoAsset, VNFeaturePrintObservation)] = []
         var current: [(PhotoAsset, VNFeaturePrintObservation)] = []
-        var currentExact = true
+        var currentWorst: Float = 0   // peor distancia interna del grupo
 
         func closeGroup() {
             if current.count >= 2 {
@@ -109,9 +117,11 @@ final class PhotosModel: ObservableObject {
                     let b = $1.asset.pixelWidth * $1.asset.pixelHeight
                     return a == b ? $0.fileSize < $1.fileSize : a < b
                 }!
-                result.append(DupeGroup(members: members, exact: currentExact, bestID: best.id))
+                let tier: DupeTier = currentWorst < Self.exactThreshold ? .exact
+                    : currentWorst < Self.nearThreshold ? .near : .similar
+                result.append(DupeGroup(members: members, tier: tier, bestID: best.id))
             }
-            current = []; currentExact = true
+            current = []; currentWorst = 0
         }
 
         for (i, pa) in images.enumerated() {
@@ -129,7 +139,7 @@ final class PhotosModel: ObservableObject {
                 try? print.computeDistance(&d, to: lastPrint)
                 if d < Self.similarThreshold {
                     current.append((pa, print))
-                    if d >= Self.exactThreshold { currentExact = false }
+                    currentWorst = max(currentWorst, d)
                     joined = true
                 }
             }
@@ -140,7 +150,7 @@ final class PhotosModel: ObservableObject {
                     try? print.computeDistance(&d, to: prevPrint)
                     if d < Self.similarThreshold {
                         current = [(prev, prevPrint), (pa, print)]
-                        currentExact = d < Self.exactThreshold
+                        currentWorst = d
                         break
                     }
                 }
@@ -152,17 +162,25 @@ final class PhotosModel: ObservableObject {
 
         // Los grupos más gordos primero (la vista además los renderiza con tope)
         groups = result.sorted { $0.totalSize > $1.totalSize }
-        for g in groups where g.exact {
+        // Preselección: solo duplicadas exactas, todo menos la mejor
+        for g in groups where g.tier == .exact {
             for m in g.members where m.id != g.bestID { selected.insert(m.id) }
         }
         progress = ""
         scanning = false
     }
 
+    /// Marca todo el grupo menos la mejor (la mejor nunca es borrable).
+    func selectAllButBest(_ g: DupeGroup) {
+        for m in g.members where m.id != g.bestID { selected.insert(m.id) }
+    }
+
     // MARK: Borrado (va a "Eliminado recientemente", 30 días recuperable)
 
     func deleteSelected() {
-        let ids = selected
+        // Red de seguridad: la "mejor" de cada grupo jamás entra en el borrado
+        let bests = Set(groups.map(\.bestID))
+        let ids = selected.subtracting(bests)
         guard !ids.isEmpty else { return }
         let targets = allAssets.filter { ids.contains($0.id) }
         let bytes = targets.map(\.fileSize).reduce(0, +)

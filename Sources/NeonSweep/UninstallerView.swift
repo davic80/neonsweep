@@ -29,6 +29,13 @@ struct UninstallerView: View {
             .background(Theme.panel)
             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.border, lineWidth: 1))
 
+            HStack(spacing: 6) {
+                Text("sort:").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                sortButton(t("[name]"), .name)
+                sortButton(t("[size]"), .size)
+                sortButton(t("[active]"), .running)
+            }
+
             if model.loadingApps {
                 Text(t("reading /Applications …"))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
@@ -48,6 +55,15 @@ struct UninstallerView: View {
                                     )
                                     .lineLimit(1)
                                 Spacer()
+                                if app.sized && app.totalSize > 0 {
+                                    Text(formatBytes(app.totalSize))
+                                        .font(Theme.mono(9))
+                                        .foregroundStyle(app.totalSize > 2_000_000_000 ? Theme.neon : Theme.grayDark)
+                                }
+                                if app.hasLoginItem {
+                                    Text("●").font(Theme.mono(8)).foregroundStyle(Theme.neonDim)
+                                        .help(t("Starts at login (LaunchAgent)"))
+                                }
                                 if app.isRunning {
                                     Text("●").font(Theme.small).foregroundStyle(Theme.amber)
                                         .help(t("Running"))
@@ -66,9 +82,20 @@ struct UninstallerView: View {
             }
             Text("\(model.filteredApps.count) " + t("apps // Apple (SIP) excluded"))
                 .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+            Text(t("● running   ● starts at login   size = app + data"))
+                .font(Theme.mono(8)).foregroundStyle(Theme.grayDark)
         }
         .padding(14)
-        .frame(width: 280)
+        .frame(width: 300)
+    }
+
+    private func sortButton(_ label: String, _ key: AppSortKey) -> some View {
+        Button { model.sortKey = key } label: {
+            Text(label)
+                .font(Theme.mono(10, model.sortKey == key ? .bold : .regular))
+                .foregroundStyle(model.sortKey == key ? Theme.neon : Theme.grayDark)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Detalle de restos

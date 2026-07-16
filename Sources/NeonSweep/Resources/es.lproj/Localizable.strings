@@ -39,6 +39,11 @@
 "apps // Apple (SIP) excluded" = "apps // Apple (SIP) excluidas";
 "[ RUNNING — quit it first ]" = "[ EN EJECUCIÓN — ciérrala antes ]";
 "searching leftovers in ~/Library" = "buscando restos en ~/Library";
+"[name]" = "[nombre]";
+"[size]" = "[tamaño]";
+"[active]" = "[activas]";
+"Starts at login (LaunchAgent)" = "Arranca al iniciar sesión (LaunchAgent)";
+"● running   ● starts at login   size = app + data" = "● en ejecución   ● arranca al inicio   tamaño = app + datos";
 "pick an app to see everything it leaves on your disk" = "elige una app para ver todo lo que deja en tu disco";
 "name?" = "¿nombre?";
 "Matches by name only — review before checking" = "Coincide solo por nombre — revísalo antes de marcar";
@@ -133,8 +138,13 @@
 "analyzing %d/%d…" = "analizando %d/%d…";
 "DUPLICATES & SIMILAR — %d groups" = "DUPLICADOS Y SIMILARES — %d grupos";
 "no groups detected (or not analyzed yet)" = "sin grupos detectados (o aún sin analizar)";
-"EXACT" = "EXACTOS";
+"DUPLICATES" = "DUPLICADAS";
+"NEAR-DUPLICATES" = "CASI DUPLICADAS";
 "SIMILAR" = "SIMILARES";
+"[ ALL BUT BEST ]" = "[ TODAS MENOS LA MEJOR ]";
+"Marks the whole group except the best — you can unmark any to keep more" = "Marca todo el grupo menos la mejor — desmarca las que quieras conservar";
+"kept" = "se queda";
+"The best of the group is always kept" = "La mejor del grupo se conserva siempre";
 "%d photos // %@" = "%d fotos // %@";
 "… and %d more groups — clean these first and re-analyze" = "… y %d grupos más — limpia estos primero y re-analiza";
 "BEST" = "MEJOR";

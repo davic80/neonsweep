@@ -1,6 +1,9 @@
-// Genera assets/NeonSweep.icns: escoba ASCII estilo retro-neón.
-// Uso: swift scripts/make-icon.swift
+// Genera el icono "clean_" estilo retro-neón.
+// Uso: swift scripts/make-icon.swift [top|center|bottom] [ruta_salida.png]
 import AppKit
+
+let position = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "center"
+let outPath = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "assets/icon_1024.png"
 
 let size: CGFloat = 1024
 let img = NSImage(size: NSSize(width: size, height: size))
@@ -38,8 +41,19 @@ let attrs: [NSAttributedString.Key: Any] = [
 ]
 let text = "clean_" as NSString
 let bounds = text.size(withAttributes: attrs)
-text.draw(at: NSPoint(x: (size - bounds.width) / 2, y: (size - bounds.height) / 2 + 20),
-          withAttributes: attrs)
+let tx: CGFloat, ty: CGFloat
+switch position {
+case "top":     // prompt recién abierto: arriba a la izquierda
+    tx = inset + 90
+    ty = size - inset - bounds.height - 70
+case "bottom":  // comando esperando intro: abajo a la izquierda
+    tx = inset + 90
+    ty = inset + 80
+default:        // centrado
+    tx = (size - bounds.width) / 2
+    ty = (size - bounds.height) / 2 + 20
+}
+text.draw(at: NSPoint(x: tx, y: ty), withAttributes: attrs)
 
 img.unlockFocus()
 
@@ -50,6 +64,7 @@ guard let tiff = img.tiffRepresentation,
     fatalError("no se pudo renderizar el icono")
 }
 let fm = FileManager.default
-try? fm.createDirectory(atPath: "assets", withIntermediateDirectories: true)
-try! png.write(to: URL(fileURLWithPath: "assets/icon_1024.png"))
-print("OK assets/icon_1024.png")
+try? fm.createDirectory(atPath: (outPath as NSString).deletingLastPathComponent,
+                        withIntermediateDirectories: true)
+try! png.write(to: URL(fileURLWithPath: outPath))
+print("OK \(outPath)")

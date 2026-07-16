@@ -77,11 +77,16 @@ struct PhotosView: View {
                 ForEach(model.groups.prefix(maxGroupsShown)) { g in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 8) {
-                            Text(g.exact ? t("EXACT") : t("SIMILAR"))
-                                .font(Theme.mono(9, .bold))
-                                .foregroundStyle(g.exact ? Theme.neon : Theme.amber)
+                            tierTag(g.tier)
                             Text(String(format: t("%d photos // %@"), g.members.count, formatBytes(g.totalSize)))
                                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                            Spacer()
+                            Button { model.selectAllButBest(g) } label: {
+                                Text(t("[ ALL BUT BEST ]"))
+                                    .font(Theme.mono(9, .bold)).foregroundStyle(Theme.neonDim)
+                            }
+                            .buttonStyle(.plain)
+                            .help(t("Marks the whole group except the best — you can unmark any to keep more"))
                         }
                         ScrollView(.horizontal, showsIndicators: false) {
                             LazyHStack(spacing: 6) {
@@ -102,6 +107,17 @@ struct PhotosView: View {
         }
     }
 
+    private func tierTag(_ tier: DupeTier) -> some View {
+        switch tier {
+        case .exact:
+            Text(t("DUPLICATES")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.neon)
+        case .near:
+            Text(t("NEAR-DUPLICATES")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
+        case .similar:
+            Text(t("SIMILAR")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.gray)
+        }
+    }
+
     private func thumbCell(_ m: PhotoAsset, isBest: Bool) -> some View {
         let isSel = model.selected.contains(m.id)
         return VStack(spacing: 2) {
@@ -118,13 +134,15 @@ struct PhotosView: View {
                         .background(Theme.neon)
                 }
             }
-            Text(isSel ? t("[x] delete") : "[ ] " + formatBytes(m.fileSize))
+            Text(isBest ? t("kept") : (isSel ? t("[x] delete") : "[ ] " + formatBytes(m.fileSize)))
                 .font(Theme.mono(9))
-                .foregroundStyle(isSel ? Theme.neon : Theme.grayDark)
+                .foregroundStyle(isBest ? Theme.neonDim : (isSel ? Theme.neon : Theme.grayDark))
         }
         .onTapGesture {
+            guard !isBest else { return }   // la mejor no se puede marcar
             if isSel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
         }
+        .help(isBest ? t("The best of the group is always kept") : "")
     }
 
     // MARK: Vídeos grandes → HEVC
