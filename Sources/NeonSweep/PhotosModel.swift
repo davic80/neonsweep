@@ -13,6 +13,7 @@ struct PhotoAsset: Identifiable {
     let asset: PHAsset
     var fileSize: Int64
     var isRaw: Bool = false
+    var filename: String?
 }
 
 /// Nivel de parecido dentro de un grupo (según la peor distancia interna).
@@ -42,6 +43,7 @@ final class PhotosModel: ObservableObject {
     @Published var groups: [DupeGroup] = []
     @Published var bigVideos: [PhotoAsset] = []
     @Published var rawPhotos: [PhotoAsset] = []
+    @Published var dupeVideoIDs: Set<String> = []   // vídeos con gemelo probable
     @Published var selected: Set<String> = []
     @Published var lastResult: String?
 
@@ -100,7 +102,8 @@ final class PhotosModel: ObservableObject {
                 }
                 let meta = Self.resourceMeta(of: asset)
                 let pa = PhotoAsset(id: asset.localIdentifier, asset: asset,
-                                    fileSize: meta.size, isRaw: meta.isRaw)
+                                    fileSize: meta.size, isRaw: meta.isRaw,
+                                    filename: meta.filename)
                 switch asset.mediaType {
                 case .image:
                     if meta.isRaw { raws.append(pa) }
@@ -115,6 +118,7 @@ final class PhotosModel: ObservableObject {
         let images = collected.0
         bigVideos = collected.1.sorted { $0.fileSize > $1.fileSize }
         rawPhotos = collected.2.sorted { $0.fileSize > $1.fileSize }
+        dupeVideoIDs = Self.findDupeVideos(bigVideos)
 
         // Huellas visuales + agrupación por ventana temporal
         let total = images.count
@@ -368,8 +372,8 @@ final class PhotosModel: ObservableObject {
 
     // MARK: Helpers
 
-    /// Tamaño y tipo del recurso original del asset.
-    nonisolated static func resourceMeta(of asset: PHAsset) -> (size: Int64, isRaw: Bool) {
+    /// Tamaño, tipo y nombre del recurso original del asset.
+    nonisolated static func resourceMeta(of asset: PHAsset) -> (size: Int64, isRaw: Bool, filename: String?) {
         let res = PHAssetResource.assetResources(for: asset)
         let primary = res.first {
             $0.type == .photo || $0.type == .video || $0.type == .fullSizePhoto || $0.type == .fullSizeVideo
@@ -379,7 +383,26 @@ final class PhotosModel: ObservableObject {
             ($0.type == .photo || $0.type == .alternatePhoto || $0.type == .fullSizePhoto)
                 && (UTType($0.uniformTypeIdentifier)?.conforms(to: .rawImage) ?? false)
         }
-        return (size, isRaw)
+        return (size, isRaw, primary?.originalFilename)
+    }
+
+    /// Vídeos con gemelo probable: misma duración (±0,5 s), misma resolución
+    /// y tamaño idéntico al 2%. No usa Vision (los vídeos no tienen featureprint).
+    nonisolated static func findDupeVideos(_ videos: [PhotoAsset]) -> Set<String> {
+        var out: Set<String> = []
+        for i in videos.indices {
+            for j in (i + 1)..<videos.count {
+                let a = videos[i], b = videos[j]
+                guard abs(a.asset.duration - b.asset.duration) < 0.5,
+                      a.asset.pixelWidth == b.asset.pixelWidth,
+                      a.asset.pixelHeight == b.asset.pixelHeight,
+                      abs(a.fileSize - b.fileSize) < max(a.fileSize, b.fileSize) / 50
+                else { continue }
+                out.insert(a.id)
+                out.insert(b.id)
+            }
+        }
+        return out
     }
 
     /// Códec del vídeo ("HEVC ✓", "H.264", "ProRes"…) para mostrar en la fila.

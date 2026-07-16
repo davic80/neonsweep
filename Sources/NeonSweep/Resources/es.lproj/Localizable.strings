@@ -182,4 +182,6 @@
 "WARN: %@" = "AVISO: %@";
 "[ DELETE FROM PHOTOS ]" = "[ ELIMINAR DE FOTOS ]";
 "Already HEVC — recompressing won't shrink it" = "Ya es HEVC — recomprimirlo no lo encoge";
+"DUPE?" = "¿DUPE?";
+"Same duration, resolution and size as another video — probably a duplicate" = "Misma duración, resolución y tamaño que otro vídeo — probablemente duplicado";
 "macOS asks for confirmation; goes to \"Recently Deleted\" (30 days)" = "macOS pide confirmación; va a \"Eliminado recientemente\" (30 días)";

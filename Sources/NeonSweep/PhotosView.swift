@@ -211,12 +211,21 @@ struct PhotosView: View {
             }
             .buttonStyle(.plain)
             AssetThumb(asset: m.asset).frame(width: 44, height: 28).clipped()
-            Text(m.asset.creationDate.map { Self.df.string(from: $0) } ?? "—")
+            Text(m.filename ?? "—")
                 .font(Theme.small).foregroundStyle(Theme.gray)
+                .lineLimit(1).truncationMode(.middle)
+                .frame(maxWidth: 180, alignment: .leading)
+            Text(m.asset.creationDate.map { Self.df.string(from: $0) } ?? "—")
+                .font(Theme.small).foregroundStyle(Theme.grayDark)
             if m.asset.mediaType == .video {
                 Text(Self.duration(m.asset.duration))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
                 VideoCodecTag(asset: m.asset)
+                if model.dupeVideoIDs.contains(m.id) {
+                    Text(t("DUPE?"))
+                        .font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
+                        .help(t("Same duration, resolution and size as another video — probably a duplicate"))
+                }
             } else {
                 Text("\(m.asset.pixelWidth)×\(m.asset.pixelHeight)")
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
