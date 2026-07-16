@@ -17,7 +17,7 @@ struct NeonSweepApp: App {
 }
 
 enum Module: String, CaseIterable, Identifiable {
-    case dashboard, uninstaller, systemJunk, devJunk, photos
+    case dashboard, uninstaller, systemJunk, devJunk, photos, updates
     var id: String { rawValue }
 
     var label: String {
@@ -27,6 +27,7 @@ enum Module: String, CaseIterable, Identifiable {
         case .systemJunk:  return t("SYSTEM JUNK")
         case .devJunk:     return t("DEV JUNK")
         case .photos:      return t("PHOTOS")
+        case .updates:     return t("UPDATES")
         }
     }
     var index: String {
@@ -40,6 +41,7 @@ struct RootView: View {
     @StateObject private var systemJunk = JunkModel(specs: SystemJunkSpecs.all)
     @StateObject private var devJunk = JunkModel(specs: DevJunkSpecs.all)
     @StateObject private var photos = PhotosModel()
+    @StateObject private var updates = UpdatesModel()
     @ObservedObject private var tracker = FreedTracker.shared
     @ObservedObject private var lang = Lang.shared
     @State private var selected: Module = .dashboard
@@ -62,6 +64,8 @@ struct RootView: View {
                         JunkView(model: devJunk, prompt: "--dev")
                     case .photos:
                         PhotosView(model: photos)
+                    case .updates:
+                        UpdatesView(model: updates)
                     }
                 }
                 .frame(maxHeight: .infinity)

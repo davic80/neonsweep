@@ -3,6 +3,22 @@
 "SYSTEM JUNK" = "BASURA SISTEMA";
 "DEV JUNK" = "BASURA DEV";
 "PHOTOS" = "FOTOS";
+"UPDATES" = "ACTUALIZACIONES";
+
+/* Actualizaciones */
+"[ CHECK AGAIN ]" = "[ COMPROBAR ]";
+"[ CHECKING… ]" = "[ COMPROBANDO… ]";
+"HOMEBREW — %d updates" = "HOMEBREW — %d actualizaciones";
+"APP STORE — %d updates" = "APP STORE — %d actualizaciones";
+"brew not found on this Mac" = "brew no está instalado en este Mac";
+"everything up to date ✓" = "todo al día ✓";
+"install `mas` (brew install mas) to list App Store updates here" = "instala `mas` (brew install mas) para listar aquí las actualizaciones de App Store";
+"[ OPEN APP STORE ]" = "[ ABRIR APP STORE ]";
+"[ UPGRADE ]" = "[ ACTUALIZAR ]";
+"[ UPGRADE ALL (%d) ]" = "[ ACTUALIZAR TODO (%d) ]";
+"upgrading %@…" = "actualizando %@…";
+"OK: %d updated" = "OK: %d actualizados";
+"WARN: %d updated, %d failed (see Terminal for details)" = "AVISO: %d actualizados, %d fallaron (detalles en Terminal)";
 "// no telemetry\n// nothing deleted without asking" = "// sin telemetría\n// nada se borra sin confirmar";
 "[ RECLAIMED ]" = "[ RECUPERADO ]";
 "→ trash" = "→ papelera";
