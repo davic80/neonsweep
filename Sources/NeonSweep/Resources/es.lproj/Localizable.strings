@@ -177,7 +177,8 @@
 "[ WORKING… ]" = "[ TRABAJANDO… ]";
 "recompressing %d/%d…" = "recomprimiendo %d/%d…";
 "converting %d/%d…" = "convirtiendo %d/%d…";
-"OK: %d optimized, %d skipped — %@ saved (original in Recently Deleted)" = "OK: %d optimizados, %d omitidos — %@ ahorrados (original en Eliminado recientemente)";
+"%@: %d optimized, %d no gain, %d errors — %@ saved (log: ~/Library/Logs/NeonSweep.log)" = "%@: %d optimizados, %d sin ganancia, %d errores — %@ ahorrados (log: ~/Library/Logs/NeonSweep.log)";
+"WARN" = "AVISO";
 "OK: %d photos → Recently Deleted (%@)" = "OK: %d fotos → Eliminado recientemente (%@)";
 "WARN: %@" = "AVISO: %@";
 "[ DELETE FROM PHOTOS ]" = "[ ELIMINAR DE FOTOS ]";

@@ -242,8 +242,9 @@ final class PhotosModel: ObservableObject {
         optimizing = true
         Task {
             var savedTotal: Int64 = 0
-            var done = 0, failed = 0
+            var done = 0, noGain = 0, failed = 0
             let n = targets.count
+            AppLog.log("OPTIMIZE inicio: \(n) elementos, modo \(video ? "vídeo→HEVC" : "RAW→HEIC")")
             for (i, pa) in targets.enumerated() {
                 progress = String(format: video ? t("recompressing %d/%d…") : t("converting %d/%d…"),
                                   i + 1, n)
@@ -258,12 +259,17 @@ final class PhotosModel: ObservableObject {
                 }.value
                 guard let outURL,
                       let newSize = (try? FileManager.default.attributesOfItem(atPath: outURL.path))?[.size] as? Int64,
-                      newSize > 0 else { failed += 1; continue }
+                      newSize > 0 else {
+                    AppLog.log("  \(pa.filename ?? pa.id): conversión falló o se omitió (ver líneas previas)")
+                    failed += 1
+                    continue
+                }
 
                 // Solo merece la pena si encoge DE VERDAD (mínimo 15%)
                 guard newSize < pa.fileSize * 85 / 100 else {
+                    AppLog.log("  \(pa.filename ?? pa.id): sin ganancia (\(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB), se conserva el original")
                     try? FileManager.default.removeItem(at: outURL)
-                    failed += 1
+                    noGain += 1
                     continue
                 }
                 do {
@@ -286,7 +292,9 @@ final class PhotosModel: ObservableObject {
                     }
                     savedTotal += pa.fileSize - newSize
                     done += 1
+                    AppLog.log("  \(pa.filename ?? pa.id): OK \(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB")
                 } catch {
+                    AppLog.log("  \(pa.filename ?? pa.id): error al importar/borrar en Fotos: \(error.localizedDescription)")
                     failed += 1
                 }
                 try? FileManager.default.removeItem(at: outURL)
@@ -297,8 +305,9 @@ final class PhotosModel: ObservableObject {
             progress = ""
             fraction = nil
             optimizing = false
-            lastResult = String(format: t("OK: %d optimized, %d skipped — %@ saved (original in Recently Deleted)"),
-                                done, failed, formatBytes(savedTotal))
+            AppLog.log("OPTIMIZE fin: \(done) ok, \(noGain) sin ganancia, \(failed) errores, ahorro \(formatBytes(savedTotal))")
+            lastResult = String(format: t("%@: %d optimized, %d no gain, %d errors — %@ saved (log: ~/Library/Logs/NeonSweep.log)"),
+                                failed == 0 ? "OK" : t("WARN"), done, noGain, failed, formatBytes(savedTotal))
         }
     }
 
@@ -320,6 +329,7 @@ final class PhotosModel: ObservableObject {
         if let track = try? await avAsset.loadTracks(withMediaType: .video).first,
            let desc = try? await track.load(.formatDescriptions).first,
            CMFormatDescriptionGetMediaSubType(desc) == kCMVideoCodecType_HEVC {
+            AppLog.log("VIDEO \(asset.localIdentifier): ya es HEVC, omitido")
             return nil
         }
 
@@ -342,19 +352,40 @@ final class PhotosModel: ObservableObject {
     }
 
     /// Convierte un RAW a HEIC (CIRAWFilter + CIContext, pipeline oficial de Apple).
+    /// Pide explícitamente el recurso RAW (clave en assets RAW+JPEG o en iCloud).
     nonisolated static func rawToHEIC(_ asset: PHAsset) -> URL? {
-        let opts = PHImageRequestOptions()
-        opts.isSynchronous = true
-        opts.isNetworkAccessAllowed = true
-        opts.version = .original
-        var rawData: Data?
-        PHImageManager.default().requestImageDataAndOrientation(for: asset, options: opts) { data, _, _, _ in
-            rawData = data
+        let resources = PHAssetResource.assetResources(for: asset)
+        let name = resources.first?.originalFilename ?? asset.localIdentifier
+        guard let rawRes = resources.first(where: {
+            UTType($0.uniformTypeIdentifier)?.conforms(to: .rawImage) ?? false
+        }) else {
+            AppLog.log("RAW \(name): sin recurso RAW entre \(resources.map(\.uniformTypeIdentifier))")
+            return nil
         }
-        guard let rawData,
-              let filter = CIRAWFilter(imageData: rawData, identifierHint: nil),
-              let image = filter.outputImage
-        else { return nil }
+
+        var data = Data()
+        var reqError: Error?
+        let reqOpts = PHAssetResourceRequestOptions()
+        reqOpts.isNetworkAccessAllowed = true   // puede estar solo en iCloud
+        let sem = DispatchSemaphore(value: 0)
+        PHAssetResourceManager.default().requestData(for: rawRes, options: reqOpts) { chunk in
+            data.append(chunk)
+        } completionHandler: { err in
+            reqError = err
+            sem.signal()
+        }
+        sem.wait()
+        if let reqError {
+            AppLog.log("RAW \(name): error descargando datos: \(reqError.localizedDescription)")
+            return nil
+        }
+        AppLog.log("RAW \(name): \(data.count / 1_000_000) MB de \(rawRes.uniformTypeIdentifier)")
+
+        guard let filter = CIRAWFilter(imageData: data, identifierHint: nil),
+              let image = filter.outputImage else {
+            AppLog.log("RAW \(name): CIRAWFilter no pudo decodificar")
+            return nil
+        }
         let out = FileManager.default.temporaryDirectory
             .appendingPathComponent("neonsweep-\(UUID().uuidString).heic")
         let ctx = CIContext()
@@ -366,6 +397,7 @@ final class PhotosModel: ObservableObject {
                 options: [quality: 0.9])
             return out
         } catch {
+            AppLog.log("RAW \(name): error escribiendo HEIC: \(error.localizedDescription)")
             return nil
         }
     }
