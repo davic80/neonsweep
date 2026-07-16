@@ -24,32 +24,21 @@ while y < size - inset - 20 {
     y += 22
 }
 
-// Escoba ASCII
-let art = [
-    "    ▐█▌    ",
-    "    ▐█▌    ",
-    "    ▐█▌    ",
-    "    ▐█▌    ",
-    "   ▄███▄   ",
-    "  ▟█████▙  ",
-    " ▟███████▙ ",
-    " █████████ ",
-    " ▘▝▘▝▘▝▘▝▘ ",
-]
+// "clean_" en letras de terminal con cursor
 let neon = NSColor(red: 0.224, green: 1.0, blue: 0.078, alpha: 1)
 let shadow = NSShadow()
 shadow.shadowColor = neon.withAlphaComponent(0.85)
-shadow.shadowBlurRadius = 42
+shadow.shadowBlurRadius = 46
 
-let font = NSFont(name: "Menlo-Bold", size: 74) ?? NSFont.monospacedSystemFont(ofSize: 74, weight: .bold)
+let font = NSFont(name: "Menlo-Bold", size: 210) ?? NSFont.monospacedSystemFont(ofSize: 210, weight: .bold)
 let attrs: [NSAttributedString.Key: Any] = [
     .font: font,
     .foregroundColor: neon,
     .shadow: shadow,
 ]
-let text = art.joined(separator: "\n") as NSString
+let text = "clean_" as NSString
 let bounds = text.size(withAttributes: attrs)
-text.draw(at: NSPoint(x: (size - bounds.width) / 2, y: (size - bounds.height) / 2),
+text.draw(at: NSPoint(x: (size - bounds.width) / 2, y: (size - bounds.height) / 2 + 20),
           withAttributes: attrs)
 
 img.unlockFocus()

@@ -134,17 +134,20 @@ struct PhotosView: View {
             if model.bigVideos.isEmpty {
                 Text(t("none")).font(Theme.small).foregroundStyle(Theme.grayDark)
             } else {
-                Text(t("recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted"))
-                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                HStack {
+                    Text(t("recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted"))
+                        .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    Spacer()
+                    optimizeButton(
+                        label: t("[ RECOMPRESS SELECTED → HEVC ]"),
+                        count: model.selectedVideos.count
+                    ) { model.optimizeSelectedVideos() }
+                }
                 LazyVStack(alignment: .leading, spacing: 3) {
                     ForEach(model.bigVideos.prefix(30)) { m in
                         assetRow(m)
                     }
                 }
-                optimizeButton(
-                    label: t("[ RECOMPRESS SELECTED → HEVC ]"),
-                    count: model.selectedVideos.count
-                ) { model.optimizeSelectedVideos() }
             }
         }
     }
@@ -156,17 +159,20 @@ struct PhotosView: View {
             if model.rawPhotos.isEmpty {
                 Text(t("none")).font(Theme.small).foregroundStyle(Theme.grayDark)
             } else {
-                Text(t("convert to HEIC (~90% quality, huge savings); the original stays 30 days in Recently Deleted"))
-                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                HStack {
+                    Text(t("convert to HEIC (~90% quality, huge savings); the original stays 30 days in Recently Deleted"))
+                        .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    Spacer()
+                    optimizeButton(
+                        label: t("[ CONVERT SELECTED → HEIC ]"),
+                        count: model.selectedRaws.count
+                    ) { model.convertSelectedRaws() }
+                }
                 LazyVStack(alignment: .leading, spacing: 3) {
                     ForEach(model.rawPhotos.prefix(40)) { m in
                         assetRow(m)
                     }
                 }
-                optimizeButton(
-                    label: t("[ CONVERT SELECTED → HEIC ]"),
-                    count: model.selectedRaws.count
-                ) { model.convertSelectedRaws() }
             }
         }
     }
@@ -201,19 +207,16 @@ struct PhotosView: View {
     }
 
     private func optimizeButton(label: String, count: Int, action: @escaping () -> Void) -> some View {
-        HStack {
-            Spacer()
-            Button(action: action) {
-                Text(model.optimizing ? t("[ WORKING… ]") : "\(label) (\(count))")
-                    .font(Theme.mono(12, .bold))
-                    .foregroundStyle(count == 0 || model.optimizing ? Theme.grayDark : Theme.neon)
-                    .padding(.vertical, 5).padding(.horizontal, 8)
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(
-                        count == 0 || model.optimizing ? Theme.border : Theme.neon, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .disabled(count == 0 || model.optimizing)
+        Button(action: action) {
+            Text(model.optimizing ? t("[ WORKING… ]") : "\(label) (\(count))")
+                .font(Theme.mono(12, .bold))
+                .foregroundStyle(count == 0 || model.optimizing ? Theme.grayDark : Theme.neon)
+                .padding(.vertical, 5).padding(.horizontal, 8)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                    count == 0 || model.optimizing ? Theme.border : Theme.neon, lineWidth: 1))
         }
+        .buttonStyle(.plain)
+        .disabled(count == 0 || model.optimizing)
     }
 
     private static let df: DateFormatter = {
@@ -229,7 +232,12 @@ struct PhotosView: View {
 
     private var footer: some View {
         HStack {
-            if let r = model.lastResult {
+            if model.optimizing {
+                Text(model.progress)
+                    .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
+                    .shadow(color: Theme.neon.opacity(0.5), radius: 4)
+                BlinkingCursor()
+            } else if let r = model.lastResult {
                 Text(r).font(Theme.small)
                     .foregroundStyle(r.hasPrefix("OK") ? Theme.neon : Theme.amber)
                     .lineLimit(1)

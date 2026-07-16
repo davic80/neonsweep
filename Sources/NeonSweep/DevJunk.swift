@@ -32,6 +32,10 @@ enum DevJunkSpecs {
                 ("yarn", "\(JunkFS.home)/Library/Caches/Yarn"),
                 ("pnpm", "\(JunkFS.home)/Library/pnpm/store"),
                 ("pip", "\(JunkFS.home)/Library/Caches/pip"),
+                ("poetry", "\(JunkFS.home)/Library/Caches/pypoetry"),
+                ("uv", "\(JunkFS.home)/.cache/uv"),
+                ("uv (Caches)", "\(JunkFS.home)/Library/Caches/uv"),
+                ("pipenv", "\(JunkFS.home)/Library/Caches/pipenv"),
                 ("Homebrew", "\(JunkFS.home)/Library/Caches/Homebrew"),
                 ("cargo (registry)", "\(JunkFS.home)/.cargo/registry"),
                 ("gradle", "\(JunkFS.home)/.gradle/caches"),
@@ -43,7 +47,11 @@ enum DevJunkSpecs {
         JunkCategorySpec(
             id: "nodemodules", name: "FORGOTTEN NODE_MODULES",
             note: "project dependencies; `npm install` recreates them — check the project date",
-            scan: { nodeModules() }),
+            scan: { forgottenDirs(named: ["node_modules"], hidden: false) }),
+        JunkCategorySpec(
+            id: "venvs", name: "FORGOTTEN VENVS",
+            note: "Python virtualenvs; `uv sync` / `poetry install` recreates them — check the project date",
+            scan: { forgottenDirs(named: [".venv", "venv"], hidden: true) }),
     ]
 
     // MARK: Simuladores con nombre legible
@@ -71,9 +79,11 @@ enum DevJunkSpecs {
         }
     }
 
-    // MARK: node_modules de proyectos sin tocar
+    // MARK: directorios de dependencias en proyectos sin tocar
 
-    nonisolated private static func nodeModules() -> [JunkEntry] {
+    /// Busca directorios con los nombres dados bajo las carpetas de proyectos.
+    /// `hidden: true` permite encontrar nombres que empiezan por punto (.venv).
+    nonisolated private static func forgottenDirs(named targets: [String], hidden: Bool) -> [JunkEntry] {
         let fm = FileManager.default
         let df = DateFormatter()
         df.dateFormat = "dd-MM-yyyy"
@@ -88,19 +98,20 @@ enum DevJunkSpecs {
             guard depth <= 4, results.count < 100 else { return }
             guard let names = try? fm.contentsOfDirectory(atPath: dir) else { return }
             for n in names {
-                if n.hasPrefix(".") { continue }
+                let isTarget = targets.contains(n)
+                if n.hasPrefix("."), !(hidden && isTarget) { continue }
                 let p = "\(dir)/\(n)"
                 var isDir: ObjCBool = false
                 guard fm.fileExists(atPath: p, isDirectory: &isDir), isDir.boolValue else { continue }
-                if n == "node_modules" {
+                if isTarget {
                     let size = ScanModel.directorySize(URL(fileURLWithPath: p))
                     guard size > 20_000_000 else { continue }   // ignorar los diminutos
                     let projectName = (dir as NSString).lastPathComponent
                     let mod = (try? fm.attributesOfItem(atPath: dir))?[.modificationDate] as? Date
                     results.append(JunkEntry(
-                        name: "\(projectName)/node_modules", path: p, size: size,
+                        name: "\(projectName)/\(n)", path: p, size: size,
                         detail: mod.map { String(format: t("project modified %@"), df.string(from: $0)) }))
-                } else {
+                } else if n != "node_modules" {   // no descender a dependencias
                     walk(p, depth: depth + 1)
                 }
             }

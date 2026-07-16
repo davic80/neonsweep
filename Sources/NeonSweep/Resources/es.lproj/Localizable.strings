@@ -93,6 +93,34 @@
 "OK: Trash emptied — %@ truly freed" = "OK: Papelera vaciada — %@ liberados de verdad";
 "WARN: could not empty (%@)" = "AVISO: no se pudo vaciar (%@)";
 
+/* Permisos */
+"PERMISSIONS" = "PERMISOS";
+"// grant everything once here and the modules won't nag you later" = "// concédelo todo una vez aquí y los módulos no te interrumpirán después";
+"Full Disk Access" = "Acceso Total al Disco";
+"finds ~98% of app leftovers and measures the Trash" = "encuentra ~98% de los restos de apps y mide la Papelera";
+"[ OPEN SETTINGS ]" = "[ ABRIR AJUSTES ]";
+"Automation → Finder" = "Automatización → Finder";
+"needed to empty the Trash" = "necesario para vaciar la Papelera";
+"[ REQUEST ]" = "[ SOLICITAR ]";
+"Photos library" = "Librería de Fotos";
+"needed by the PHOTOS module" = "lo necesita el módulo FOTOS";
+
+/* Inspector drag & drop */
+"INSPECTOR" = "INSPECTOR";
+"inspecting…" = "inspeccionando…";
+"no photos or videos recognized" = "no se reconocieron fotos ni vídeos";
+"video" = "vídeo";
+"image" = "imagen";
+"possible saving: ~%@ (%d%%)" = "ganancia posible: ~%@ (%d%%)";
+"already efficient — nothing to gain" = "ya eficiente — nada que ganar";
+"TOTAL possible saving: ~%@" = "Ganancia posible TOTAL: ~%@";
+"// import into Photos and use [05] to actually optimize" = "// impórtalo en Fotos y usa [05] para optimizar de verdad";
+"[ CLOSE ]" = "[ CERRAR ]";
+
+/* Dev extra */
+"FORGOTTEN VENVS" = "VENVS OLVIDADOS";
+"Python virtualenvs; `uv sync` / `poetry install` recreates them — check the project date" = "virtualenvs de Python; `uv sync` / `poetry install` los recrea — revisa la fecha del proyecto";
+
 /* Fotos */
 "[ ANALYZE LIBRARY ]" = "[ ANALIZAR LIBRERÍA ]";
 "[ ANALYZING… ]" = "[ ANALIZANDO… ]";

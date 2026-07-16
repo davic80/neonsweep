@@ -39,6 +39,7 @@ struct RootView: View {
     @ObservedObject private var tracker = FreedTracker.shared
     @ObservedObject private var lang = Lang.shared
     @State private var selected: Module = .dashboard
+    @State private var dropTargeted = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -65,9 +66,34 @@ struct RootView: View {
         }
         .id(lang.code)   // cambiar de idioma reconstruye la interfaz
         .background(Theme.bg)
+        .overlay(alignment: .center) { DropInspectorPanel() }
+        .overlay {
+            if dropTargeted {
+                Rectangle().stroke(Theme.neon, lineWidth: 3)
+                    .shadow(color: Theme.neon.opacity(0.7), radius: 10)
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
+            Task { @MainActor in
+                var urls: [URL] = []
+                for p in providers {
+                    if let url = await Self.loadURL(from: p) { urls.append(url) }
+                }
+                DropModel.shared.inspect(urls)
+            }
+            return true
+        }
         .onAppear {
             model.scan()
             TrashModel.shared.refresh()
+        }
+    }
+
+    private static func loadURL(from provider: NSItemProvider) async -> URL? {
+        await withCheckedContinuation { cont in
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                cont.resume(returning: url)
+            }
         }
     }
 

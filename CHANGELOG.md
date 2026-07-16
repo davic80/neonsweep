@@ -2,6 +2,18 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- **Permissions panel** on the dashboard: grant Full Disk Access, Automation → Finder and Photos once, with live status dots, instead of being interrupted module by module.
+- **Cloud overview**: synced cloud drives from `~/Library/CloudStorage` (Google Drive, Dropbox, OneDrive…) listed on the dashboard with their local footprint.
+- **Drag & drop inspector**: drop any photo/video onto the app to see codec, dimensions, duration and estimated savings if optimized (H.264 ~45%, ProRes ~85%, RAW→HEIC ~75%…).
+- Dev junk: poetry / uv / pipenv caches and **forgotten Python venvs** (`.venv`, `venv`) with project dates.
+
+### Changed
+- New app icon: `clean_` in glowing terminal type (replaces the ASCII broom).
+- Photos: optimize buttons moved to the top of each section; live progress (`recompressing 2/5…`) shown in the footer while working.
+
 ## [0.2.0] — 2026-07-15
 
 ### Added

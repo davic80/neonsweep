@@ -7,6 +7,7 @@ struct DashboardView: View {
         NeonScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header
+                PermissionsPanel()
                 diskPanel
                 HStack(alignment: .top, spacing: 14) {
                     icloudPanel

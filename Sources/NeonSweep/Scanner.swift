@@ -61,6 +61,17 @@ final class ScanModel: ObservableObject {
         scanning = true
         items = Self.targets.map { JunkItem(name: $0.0, path: $0.1, cleanable: $0.2) }
 
+        // Otras nubes sincronizadas (Google Drive, Dropbox, OneDrive…):
+        // File Provider las monta en ~/Library/CloudStorage. Solo informativo:
+        // lo que ocupan EN LOCAL (la limpieza dentro de la nube es cosa suya).
+        let cloudBase = "\(Self.home)/Library/CloudStorage"
+        if let provs = try? FileManager.default.contentsOfDirectory(atPath: cloudBase) {
+            for p in provs.sorted() where !p.hasPrefix(".") {
+                items.append(JunkItem(name: Self.prettyCloudName(p),
+                                      path: "\(cloudBase)/\(p)", cleanable: false))
+            }
+        }
+
         Task {
             // Disco: instantáneo
             self.disk = Self.diskSnapshot()
@@ -95,6 +106,16 @@ final class ScanModel: ObservableObject {
             self.currentPath = ""
             self.scanning = false
         }
+    }
+
+    /// "GoogleDrive-david@gmail.com" → "Google Drive (david@gmail.com, local)"
+    nonisolated static func prettyCloudName(_ raw: String) -> String {
+        guard let dash = raw.firstIndex(of: "-") else { return "\(raw) (local)" }
+        let provider = String(raw[..<dash])
+            .replacingOccurrences(of: "GoogleDrive", with: "Google Drive")
+            .replacingOccurrences(of: "OneDrive", with: "OneDrive")
+        let account = String(raw[raw.index(after: dash)...])
+        return "\(provider) (\(account), local)"
     }
 
     // MARK: Helpers (nonisolated, corren fuera del MainActor)
