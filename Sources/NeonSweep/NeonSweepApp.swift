@@ -164,7 +164,7 @@ struct RootView: View {
                 .font(Theme.mono(10, .bold))
                 .foregroundStyle(Theme.neonDim)
             counterRow(t("→ trash"), tracker.sessionTrashed, dim: true)
-            counterRow(t("cleaned today"), tracker.sessionPurged)
+            counterRow(t("cleaned today"), tracker.todayPurged)
             counterRow(t("cleaned total"), tracker.allTimePurged)
         }
         .padding(10)

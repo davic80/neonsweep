@@ -9,6 +9,9 @@ disabled_rules:
   - cyclomatic_complexity
   - trailing_comma
   - todo
-opt_in_rules:
-  - empty_count
-  - closure_spacing
+  # alineación en columnas de las tablas de rutas/objetivos
+  - comma
+  # usamos tuplas de 3 con nombres en escáneres internos
+  - large_tuple
+  - statement_position
+  - implicit_optional_initialization

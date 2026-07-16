@@ -182,6 +182,9 @@
 "OK: %d photos → Recently Deleted (%@)" = "OK: %d fotos → Eliminado recientemente (%@)";
 "WARN: %@" = "AVISO: %@";
 "[ DELETE FROM PHOTOS ]" = "[ ELIMINAR DE FOTOS ]";
+"// saved results from %@ — re-analyze if the library changed" = "// resultados guardados del %@ — re-analiza si la librería cambió";
+"Apple app — removable, reinstall from App Store" = "App de Apple — desinstalable, se reinstala desde App Store";
+"apps //  = Apple removable; system apps (SIP) hidden" = "apps //  = Apple desinstalable; las del sistema (SIP) no salen";
 "Already HEVC — recompressing won't shrink it" = "Ya es HEVC — recomprimirlo no lo encoge";
 "DUPE?" = "¿DUPE?";
 "Same duration, resolution and size as another video — probably a duplicate" = "Misma duración, resolución y tamaño que otro vídeo — probablemente duplicado";

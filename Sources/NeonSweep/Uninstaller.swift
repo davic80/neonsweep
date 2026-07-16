@@ -11,6 +11,7 @@ struct InstalledApp: Identifiable, Hashable {
     var appSize: Int64 = -1     // -1 = calculando
     var dataSize: Int64 = -1    // estimación rápida de datos en ~/Library
     var hasLoginItem = false    // tiene LaunchAgent → arranca al iniciar sesión
+    var isApple: Bool { bundleID.hasPrefix("com.apple.") }
 
     var totalSize: Int64 { max(0, appSize) + max(0, dataSize) }
     var sized: Bool { appSize >= 0 && dataSize >= 0 }
@@ -154,8 +155,10 @@ final class UninstallerModel: ObservableObject {
                 let path = "\(dir)/\(n)"
                 guard let bundle = Bundle(url: URL(fileURLWithPath: path)),
                       let bid = bundle.bundleIdentifier else { continue }
-                // Las apps de Apple no se pueden desinstalar (SIP) — fuera de la lista
-                if bid.hasPrefix("com.apple.") { continue }
+                // Las de /System/Applications no se listan (SIP); en /Applications
+                // las de Apple (iWork, iMovie, GarageBand…) SÍ son desinstalables.
+                // Safari es la excepción: protegida aunque viva en /Applications.
+                if bid == "com.apple.Safari" { continue }
                 let name = (n as NSString).deletingPathExtension
                 result.append(InstalledApp(id: path, name: name, bundleID: bid, path: path))
             }

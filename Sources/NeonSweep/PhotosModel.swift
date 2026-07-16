@@ -3,6 +3,7 @@ import Vision
 import AVFoundation
 import CoreImage
 import CoreMedia
+import ImageIO
 import UniformTypeIdentifiers
 import AppKit
 
@@ -46,6 +47,7 @@ final class PhotosModel: ObservableObject {
     @Published var dupeVideoIDs: Set<String> = []   // vídeos con gemelo probable
     @Published var selected: Set<String> = []
     @Published var lastResult: String?
+    @Published var cacheDate: Date?   // los resultados vienen de análisis guardado
 
     // Umbrales de distancia entre huellas visuales de Vision
     private static let exactThreshold: Float = 0.25    // duplicadas
@@ -70,6 +72,81 @@ final class PhotosModel: ObservableObject {
     /// Lee el estado actual del permiso (p. ej. concedido desde el dashboard).
     func refreshStatus() {
         status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        // Si hay análisis guardado y aún no se cargó nada, restaurarlo
+        if (status == .authorized || status == .limited),
+           groups.isEmpty, bigVideos.isEmpty, rawPhotos.isEmpty, !scanning {
+            loadCache()
+        }
+    }
+
+    // MARK: Caché del análisis (reabrir la app no obliga a re-analizar)
+
+    private struct Cache: Codable {
+        struct CAsset: Codable { let id: String; let size: Int64; let raw: Bool; let name: String? }
+        struct CGroup: Codable { let members: [String]; let tier: Int; let best: String }
+        let date: Date
+        let assets: [CAsset]
+        let groups: [CGroup]
+        let videoIDs: [String]
+        let rawIDs: [String]
+        let dupeVideoIDs: [String]
+    }
+
+    private nonisolated static var cacheURL: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("NeonSweep")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("photoscan.json")
+    }
+
+    private func saveCache() {
+        var seen = Set<String>()
+        var assets: [Cache.CAsset] = []
+        for pa in groups.flatMap(\.members) + bigVideos + rawPhotos where seen.insert(pa.id).inserted {
+            assets.append(Cache.CAsset(id: pa.id, size: pa.fileSize, raw: pa.isRaw, name: pa.filename))
+        }
+        let cache = Cache(
+            date: Date(),
+            assets: assets,
+            groups: groups.map { g in
+                Cache.CGroup(members: g.members.map(\.id),
+                             tier: g.tier == .exact ? 0 : g.tier == .near ? 1 : 2,
+                             best: g.bestID)
+            },
+            videoIDs: bigVideos.map(\.id),
+            rawIDs: rawPhotos.map(\.id),
+            dupeVideoIDs: Array(dupeVideoIDs))
+        if let data = try? JSONEncoder().encode(cache) {
+            try? data.write(to: Self.cacheURL)
+        }
+    }
+
+    private func loadCache() {
+        guard let data = try? Data(contentsOf: Self.cacheURL),
+              let cache = try? JSONDecoder().decode(Cache.self, from: data),
+              !cache.assets.isEmpty else { return }
+        let byID = Dictionary(uniqueKeysWithValues: cache.assets.map { ($0.id, $0) })
+        // Recuperar los PHAsset que sigan existiendo
+        let fetch = PHAsset.fetchAssets(withLocalIdentifiers: cache.assets.map(\.id), options: nil)
+        var phByID: [String: PHAsset] = [:]
+        fetch.enumerateObjects { a, _, _ in phByID[a.localIdentifier] = a }
+
+        func rebuild(_ id: String) -> PhotoAsset? {
+            guard let ph = phByID[id], let c = byID[id] else { return nil }
+            return PhotoAsset(id: id, asset: ph, fileSize: c.size, isRaw: c.raw, filename: c.name)
+        }
+
+        groups = cache.groups.compactMap { g in
+            let members = g.members.compactMap(rebuild)
+            guard members.count >= 2, members.contains(where: { $0.id == g.best }) else { return nil }
+            let tier: DupeTier = g.tier == 0 ? .exact : g.tier == 1 ? .near : .similar
+            return DupeGroup(members: members, tier: tier, bestID: g.best)
+        }
+        bigVideos = cache.videoIDs.compactMap(rebuild)
+        rawPhotos = cache.rawIDs.compactMap(rebuild)
+        dupeVideoIDs = Set(cache.dupeVideoIDs).intersection(phByID.keys)
+        cacheDate = cache.date
+        AppLog.log("CACHE: restaurado análisis del \(cache.date) (\(groups.count) grupos, \(bigVideos.count) vídeos, \(rawPhotos.count) raws)")
     }
 
     func requestAndScan() {
@@ -188,6 +265,8 @@ final class PhotosModel: ObservableObject {
         progress = ""
         fraction = nil
         scanning = false
+        cacheDate = nil   // resultados frescos
+        saveCache()
     }
 
     /// Marca todo el grupo menos la mejor (la mejor nunca es borrable).
@@ -250,6 +329,13 @@ final class PhotosModel: ObservableObject {
                                   i + 1, n)
                 fraction = Double(i) / Double(n)
                 let base = Double(i)
+
+                // Los HEVC no dan ahorro: cuenta como "sin ganancia", no error
+                if video, await Self.codecLabel(for: pa.asset) == "HEVC ✓" {
+                    AppLog.log("  \(pa.filename ?? pa.id): ya es HEVC, sin ganancia posible")
+                    noGain += 1
+                    continue
+                }
                 let outURL = await Task.detached(priority: .userInitiated) {
                     video
                         ? await Self.exportHEVC(pa.asset) { itemFrac in
@@ -386,20 +472,36 @@ final class PhotosModel: ObservableObject {
             AppLog.log("RAW \(name): CIRAWFilter no pudo decodificar")
             return nil
         }
-        let out = FileManager.default.temporaryDirectory
-            .appendingPathComponent("neonsweep-\(UUID().uuidString).heic")
+
+        // Render a CGImage y escritura HEIC vía ImageIO (el escritor HEIF de
+        // CIContext falla con RAWs grandes: "CINonLocalizedDescriptionKey error 1")
         let ctx = CIContext()
-        let quality = CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String)
-        do {
-            try ctx.writeHEIFRepresentation(
-                of: image, to: out, format: .RGBA8,
-                colorSpace: image.colorSpace ?? CGColorSpace(name: CGColorSpace.displayP3)!,
-                options: [quality: 0.9])
-            return out
-        } catch {
-            AppLog.log("RAW \(name): error escribiendo HEIC: \(error.localizedDescription)")
+        guard let cg = ctx.createCGImage(image, from: image.extent, format: .RGBA8,
+                                         colorSpace: CGColorSpace(name: CGColorSpace.displayP3)) else {
+            AppLog.log("RAW \(name): no se pudo renderizar la imagen")
             return nil
         }
+        let out = FileManager.default.temporaryDirectory
+            .appendingPathComponent("neonsweep-\(UUID().uuidString).heic")
+        guard let dest = CGImageDestinationCreateWithURL(out as CFURL, UTType.heic.identifier as CFString, 1, nil) else {
+            AppLog.log("RAW \(name): no se pudo crear el destino HEIC")
+            return nil
+        }
+        // Conservar EXIF/TIFF/GPS del RAW original
+        var props: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 0.9]
+        if let src = CGImageSourceCreateWithData(data as CFData, nil),
+           let meta = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] {
+            for key in [kCGImagePropertyExifDictionary, kCGImagePropertyTIFFDictionary,
+                        kCGImagePropertyGPSDictionary] {
+                if let v = meta[key] { props[key] = v }
+            }
+        }
+        CGImageDestinationAddImage(dest, cg, props as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else {
+            AppLog.log("RAW \(name): CGImageDestinationFinalize falló")
+            return nil
+        }
+        return out
     }
 
     // MARK: Helpers

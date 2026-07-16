@@ -11,13 +11,27 @@ final class FreedTracker: ObservableObject {
     static let shared = FreedTracker()
 
     @Published private(set) var sessionTrashed: Int64 = 0
-    @Published private(set) var sessionPurged: Int64 = 0
+    @Published private(set) var todayPurged: Int64
     @Published private(set) var allTimePurged: Int64
 
     private static let key = "allTimePurgedBytes"
+    private static let todayKey = "todayPurgedBytes"
+    private static let todayDateKey = "todayPurgedDate"
+
+    private static var todayStamp: String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        return df.string(from: Date())
+    }
 
     private init() {
         allTimePurged = Int64(UserDefaults.standard.integer(forKey: Self.key))
+        // "hoy" persiste entre arranques; se resetea al cambiar de día
+        if UserDefaults.standard.string(forKey: Self.todayDateKey) == Self.todayStamp {
+            todayPurged = Int64(UserDefaults.standard.integer(forKey: Self.todayKey))
+        } else {
+            todayPurged = 0
+        }
     }
 
     /// Algo se movió a la Papelera (recuperable).
@@ -29,9 +43,14 @@ final class FreedTracker: ObservableObject {
     /// Algo se liberó definitivamente (no pasa o ya salió de la Papelera).
     func addPurged(_ bytes: Int64) {
         guard bytes > 0 else { return }
-        sessionPurged += bytes
+        if UserDefaults.standard.string(forKey: Self.todayDateKey) != Self.todayStamp {
+            todayPurged = 0   // cambió el día
+        }
+        todayPurged += bytes
         allTimePurged += bytes
         UserDefaults.standard.set(Int(allTimePurged), forKey: Self.key)
+        UserDefaults.standard.set(Int(todayPurged), forKey: Self.todayKey)
+        UserDefaults.standard.set(Self.todayStamp, forKey: Self.todayDateKey)
     }
 
     /// La Papelera se vació: lo que estaba "en papelera" pasa a "limpiado".

@@ -54,6 +54,10 @@ struct UninstallerView: View {
                                         model.selectedApp?.id == app.id ? Theme.neon : Theme.gray
                                     )
                                     .lineLimit(1)
+                                if app.isApple {
+                                    Text("").font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+                                        .help(t("Apple app — removable, reinstall from App Store"))
+                                }
                                 Spacer()
                                 if app.sized && app.totalSize > 0 {
                                     Text(formatBytes(app.totalSize))
@@ -80,7 +84,7 @@ struct UninstallerView: View {
                     }
                 }
             }
-            Text("\(model.filteredApps.count) " + t("apps // Apple (SIP) excluded"))
+            Text("\(model.filteredApps.count) " + t("apps //  = Apple removable; system apps (SIP) hidden"))
                 .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
             HStack(spacing: 10) {
                 HStack(spacing: 3) {

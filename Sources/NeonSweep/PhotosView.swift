@@ -13,6 +13,11 @@ struct PhotosView: View {
                     if model.scanning || model.optimizing {
                         ProgressStrip(label: model.progress, fraction: model.fraction)
                     }
+                    if let d = model.cacheDate, !model.scanning {
+                        Text(String(format: t("// saved results from %@ — re-analyze if the library changed"),
+                                    Self.df.string(from: d)))
+                            .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    }
                     switch model.status {
                     case .notDetermined:
                         askAccess
