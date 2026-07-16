@@ -82,8 +82,20 @@ struct UninstallerView: View {
             }
             Text("\(model.filteredApps.count) " + t("apps // Apple (SIP) excluded"))
                 .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
-            Text(t("● running   ● starts at login   size = app + data"))
-                .font(Theme.mono(8)).foregroundStyle(Theme.grayDark)
+            HStack(spacing: 10) {
+                HStack(spacing: 3) {
+                    Text("●").foregroundStyle(Theme.amber)
+                    Text(t("running")).foregroundStyle(Theme.gray)
+                }
+                HStack(spacing: 3) {
+                    Text("●").foregroundStyle(Theme.neonDim)
+                        .shadow(color: Theme.neonDim.opacity(0.8), radius: 3)
+                    Text(t("starts at login")).foregroundStyle(Theme.gray)
+                }
+            }
+            .font(Theme.mono(10))
+            Text(t("size = app + its data in ~/Library"))
+                .font(Theme.mono(10)).foregroundStyle(Theme.gray)
         }
         .padding(14)
         .frame(width: 300)
