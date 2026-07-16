@@ -43,17 +43,37 @@ let text = "clean_" as NSString
 let bounds = text.size(withAttributes: attrs)
 let tx: CGFloat, ty: CGFloat
 switch position {
-case "top":     // prompt recién abierto: arriba a la izquierda
-    tx = inset + 90
-    ty = size - inset - bounds.height - 70
+case "center":  // centrado clásico
+    tx = (size - bounds.width) / 2
+    ty = (size - bounds.height) / 2 + 20
 case "bottom":  // comando esperando intro: abajo a la izquierda
     tx = inset + 90
     ty = inset + 80
-default:        // centrado
-    tx = (size - bounds.width) / 2
-    ty = (size - bounds.height) / 2 + 20
+default:        // "top*": prompt arriba a la izquierda (elegido)
+    tx = inset + 90
+    ty = size - inset - bounds.height - 70
 }
 text.draw(at: NSPoint(x: tx, y: ty), withAttributes: attrs)
+
+// Decoración opcional en la zona baja, como "salida" del comando
+let dim = NSColor(red: 0.15, green: 0.55, blue: 0.12, alpha: 1)   // verde apagado
+let dimShadow = NSShadow()
+dimShadow.shadowColor = dim.withAlphaComponent(0.5)
+dimShadow.shadowBlurRadius = 18
+let smallFont = NSFont(name: "Menlo-Bold", size: 88) ?? NSFont.monospacedSystemFont(ofSize: 88, weight: .bold)
+let dimAttrs: [NSAttributedString.Key: Any] = [
+    .font: smallFont, .foregroundColor: dim, .shadow: dimShadow,
+]
+switch position {
+case "top-bar":   // barra de progreso tenue, como si el barrido estuviera en marcha
+    ("[██████████░░░░]" as NSString)
+        .draw(at: NSPoint(x: inset + 90, y: inset + 90), withAttributes: dimAttrs)
+case "top-ok":    // resultado del comando
+    ("ok · 47 GB" as NSString)
+        .draw(at: NSPoint(x: inset + 90, y: inset + 90), withAttributes: dimAttrs)
+default:
+    break
+}
 
 img.unlockFocus()
 
