@@ -22,9 +22,9 @@ struct PhotosView: View {
                                 .font(Theme.body).foregroundStyle(Theme.amber)
                         }
                     default:
-                        dupesSection
-                        videosSection
                         rawSection
+                        videosSection
+                        dupesSection
                     }
                 }
                 .padding(20)
