@@ -37,6 +37,7 @@ final class JunkModel: ObservableObject {
     @Published var expanded: Set<String> = []
     @Published var scanning = false
     @Published var progress = ""
+    @Published var fraction: Double?
     @Published var lastResult: String?
 
     private let specs: [JunkCategorySpec]
@@ -67,8 +68,10 @@ final class JunkModel: ObservableObject {
                 }.value
                 categories[idx].entries = entries.sorted { $0.size > $1.size }
                 categories[idx].scanned = true
+                fraction = Double(idx + 1) / Double(specs.count)
             }
             progress = ""
+            fraction = nil
             TrashModel.shared.refresh()
             scanning = false
         }

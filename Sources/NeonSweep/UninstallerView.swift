@@ -130,10 +130,7 @@ struct UninstallerView: View {
                 }
 
                 if model.inspecting {
-                    HStack(spacing: 8) {
-                        Text(t("searching leftovers in ~/Library")).font(Theme.body).foregroundStyle(Theme.gray)
-                        BlinkingCursor()
-                    }
+                    ProgressStrip(label: t("searching leftovers in ~/Library"), fraction: nil)
                 } else {
                     leftoverList(app)
                 }

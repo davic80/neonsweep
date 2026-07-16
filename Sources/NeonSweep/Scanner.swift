@@ -33,6 +33,7 @@ final class ScanModel: ObservableObject {
     @Published var items: [JunkItem] = []
     @Published var scanning = false
     @Published var currentPath = ""
+    @Published var fraction: Double?
 
     var recoverable: Int64 {
         items.filter(\.cleanable).map(\.size).reduce(0, +)
@@ -98,12 +99,14 @@ final class ScanModel: ObservableObject {
                 }.value
                 self.items[idx].size = result.0
                 self.items[idx].exists = result.1
+                self.fraction = Double(idx + 1) / Double(self.items.count)
                 if item.name.hasPrefix("iCloud Drive") {
                     self.icloud.localSize = result.0
                 }
             }
 
             self.currentPath = ""
+            self.fraction = nil
             self.scanning = false
         }
     }

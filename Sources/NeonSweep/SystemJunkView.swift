@@ -10,6 +10,10 @@ struct JunkView: View {
             NeonScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     header
+                    if model.scanning {
+                        ProgressStrip(label: String(format: t("scanning %@…"), t(model.progress)),
+                                      fraction: model.fraction)
+                    }
                     ForEach(model.categories) { cat in
                         categoryPanel(cat)
                     }
@@ -28,10 +32,7 @@ struct JunkView: View {
                 .font(Theme.mono(14, .bold)).foregroundStyle(Theme.gray)
             Text("neonsweep \(prompt)")
                 .font(Theme.mono(14, .bold)).foregroundStyle(Theme.neon)
-            if model.scanning {
-                Text(String(format: t("scanning %@…"), t(model.progress)))
-                    .font(Theme.small).foregroundStyle(Theme.grayDark)
-            } else {
+            if !model.scanning {
                 BlinkingCursor()
             }
             Spacer()

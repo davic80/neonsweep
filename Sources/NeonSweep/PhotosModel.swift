@@ -38,6 +38,7 @@ final class PhotosModel: ObservableObject {
     @Published var scanning = false
     @Published var optimizing = false
     @Published var progress = ""
+    @Published var fraction: Double?
     @Published var groups: [DupeGroup] = []
     @Published var bigVideos: [PhotoAsset] = []
     @Published var rawPhotos: [PhotoAsset] = []
@@ -87,9 +88,16 @@ final class PhotosModel: ObservableObject {
         let fetch = PHAsset.fetchAssets(with: opts)
 
         progress = String(format: t("reading library (%d items)…"), fetch.count)
+        let fetchCount = fetch.count
         let collected: ([PhotoAsset], [PhotoAsset], [PhotoAsset]) = await Task.detached(priority: .userInitiated) {
             var imgs: [PhotoAsset] = [], vids: [PhotoAsset] = [], raws: [PhotoAsset] = []
+            var done = 0
             fetch.enumerateObjects { asset, _, _ in
+                done += 1
+                if done % 100 == 0 {
+                    let f = Double(done) / Double(max(1, fetchCount)) * 0.5
+                    Task { @MainActor in self.fraction = f }
+                }
                 let meta = Self.resourceMeta(of: asset)
                 let pa = PhotoAsset(id: asset.localIdentifier, asset: asset,
                                     fileSize: meta.size, isRaw: meta.isRaw)
@@ -133,6 +141,7 @@ final class PhotosModel: ObservableObject {
         for (i, pa) in images.enumerated() {
             if i % 25 == 0 {
                 progress = String(format: t("analyzing %d/%d…"), i, total)
+                fraction = 0.5 + Double(i) / Double(max(1, total)) * 0.5
                 await Task.yield()
             }
             guard let print = await Task.detached(priority: .userInitiated, operation: {
@@ -173,6 +182,7 @@ final class PhotosModel: ObservableObject {
             for m in g.members where m.id != g.bestID { selected.insert(m.id) }
         }
         progress = ""
+        fraction = nil
         scanning = false
     }
 
@@ -229,11 +239,18 @@ final class PhotosModel: ObservableObject {
         Task {
             var savedTotal: Int64 = 0
             var done = 0, failed = 0
+            let n = targets.count
             for (i, pa) in targets.enumerated() {
                 progress = String(format: video ? t("recompressing %d/%d…") : t("converting %d/%d…"),
-                                  i + 1, targets.count)
+                                  i + 1, n)
+                fraction = Double(i) / Double(n)
+                let base = Double(i)
                 let outURL = await Task.detached(priority: .userInitiated) {
-                    video ? await Self.exportHEVC(pa.asset) : Self.rawToHEIC(pa.asset)
+                    video
+                        ? await Self.exportHEVC(pa.asset) { itemFrac in
+                            Task { @MainActor in self.fraction = (base + itemFrac) / Double(n) }
+                          }
+                        : Self.rawToHEIC(pa.asset)
                 }.value
                 guard let outURL,
                       let newSize = (try? FileManager.default.attributesOfItem(atPath: outURL.path))?[.size] as? Int64,
@@ -274,6 +291,7 @@ final class PhotosModel: ObservableObject {
             let ids = Set(targets.map(\.id))
             removeFromLists(ids)
             progress = ""
+            fraction = nil
             optimizing = false
             lastResult = String(format: t("OK: %d optimized, %d skipped — %@ saved (original in Recently Deleted)"),
                                 done, failed, formatBytes(savedTotal))
@@ -281,7 +299,9 @@ final class PhotosModel: ObservableObject {
     }
 
     /// Reexporta un vídeo a HEVC manteniendo resolución (AVAssetExportSession).
-    nonisolated static func exportHEVC(_ asset: PHAsset) async -> URL? {
+    /// `progress` recibe la fracción real de exportación (0…1).
+    nonisolated static func exportHEVC(_ asset: PHAsset,
+                                       progress: @escaping @Sendable (Double) -> Void) async -> URL? {
         let opts = PHVideoRequestOptions()
         opts.isNetworkAccessAllowed = true    // el original puede estar solo en iCloud
         opts.deliveryMode = .highQualityFormat
@@ -305,7 +325,12 @@ final class PhotosModel: ObservableObject {
         let out = FileManager.default.temporaryDirectory
             .appendingPathComponent("neonsweep-\(UUID().uuidString).mov")
         do {
-            try await session.export(to: out, as: .mov)
+            let export = Task { try await session.export(to: out, as: .mov) }
+            for await state in session.states(updateInterval: 0.5) {
+                if case .exporting(let p) = state { progress(p.fractionCompleted) }
+            }
+            try await export.value
+            progress(1)
             return out
         } catch {
             return nil

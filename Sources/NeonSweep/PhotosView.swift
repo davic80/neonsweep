@@ -10,6 +10,9 @@ struct PhotosView: View {
             NeonScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     header
+                    if model.scanning || model.optimizing {
+                        ProgressStrip(label: model.progress, fraction: model.fraction)
+                    }
                     switch model.status {
                     case .notDetermined:
                         askAccess
@@ -36,9 +39,7 @@ struct PhotosView: View {
         HStack(spacing: 6) {
             Text("david@mac:~$").font(Theme.mono(14, .bold)).foregroundStyle(Theme.gray)
             Text("neonsweep --photos").font(Theme.mono(14, .bold)).foregroundStyle(Theme.neon)
-            if model.scanning || model.optimizing {
-                Text(model.progress).font(Theme.small).foregroundStyle(Theme.grayDark)
-            } else {
+            if !model.scanning && !model.optimizing {
                 BlinkingCursor()
             }
             Spacer()

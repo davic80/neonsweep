@@ -7,6 +7,9 @@ struct DashboardView: View {
         NeonScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header
+                if model.scanning {
+                    ProgressStrip(label: model.currentPath, fraction: model.fraction)
+                }
                 PermissionsPanel()
                 diskPanel
                 HStack(alignment: .top, spacing: 14) {
@@ -30,12 +33,7 @@ struct DashboardView: View {
             Text("neonsweep --scan")
                 .font(Theme.mono(14, .bold))
                 .foregroundStyle(Theme.neon)
-            if model.scanning {
-                Text(model.currentPath)
-                    .font(Theme.small)
-                    .foregroundStyle(Theme.grayDark)
-                    .lineLimit(1)
-            } else {
+            if !model.scanning {
                 BlinkingCursor()
             }
             Spacer()
