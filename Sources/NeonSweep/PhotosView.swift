@@ -214,6 +214,7 @@ struct PhotosView: View {
             if m.asset.mediaType == .video {
                 Text(Self.duration(m.asset.duration))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
+                VideoCodecTag(asset: m.asset)
             } else {
                 Text("\(m.asset.pixelWidth)×\(m.asset.pixelHeight)")
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
@@ -278,6 +279,21 @@ struct PhotosView: View {
         .padding(.horizontal, 20).padding(.vertical, 12)
         .background(Theme.panel)
         .overlay(Rectangle().fill(Theme.border).frame(height: 1), alignment: .top)
+    }
+}
+
+/// Etiqueta de códec de un vídeo: los "HEVC ✓" ya no dan ahorro.
+struct VideoCodecTag: View {
+    let asset: PHAsset
+    @State private var label: String?
+
+    var body: some View {
+        Text(label ?? "…")
+            .font(Theme.mono(9, .bold))
+            .foregroundStyle(label == "HEVC ✓" ? Theme.neonDim
+                             : (label == nil ? Theme.grayDark : Theme.amber))
+            .help(label == "HEVC ✓" ? t("Already HEVC — recompressing won't shrink it") : "")
+            .task { label = await PhotosModel.codecLabel(for: asset) }
     }
 }
 

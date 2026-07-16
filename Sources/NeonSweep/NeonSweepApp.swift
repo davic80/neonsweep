@@ -2,6 +2,10 @@ import SwiftUI
 
 @main
 struct NeonSweepApp: App {
+    init() {
+        Diag.runIfRequested()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

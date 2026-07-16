@@ -2,6 +2,7 @@ import Photos
 import Vision
 import AVFoundation
 import CoreImage
+import CoreMedia
 import UniformTypeIdentifiers
 import AppKit
 
@@ -233,17 +234,26 @@ final class PhotosModel: ObservableObject {
                       let newSize = (try? FileManager.default.attributesOfItem(atPath: outURL.path))?[.size] as? Int64,
                       newSize > 0 else { failed += 1; continue }
 
-                // Solo merece la pena si de verdad encoge
-                guard newSize < pa.fileSize else {
+                // Solo merece la pena si encoge DE VERDAD (mínimo 15%)
+                guard newSize < pa.fileSize * 85 / 100 else {
                     try? FileManager.default.removeItem(at: outURL)
                     failed += 1
                     continue
                 }
                 do {
                     let original = pa.asset
+                    // Conservar el nombre original (con la extensión nueva)
+                    let origName = PHAssetResource.assetResources(for: original).first {
+                        $0.type == .video || $0.type == .photo
+                    }?.originalFilename
+                    let resOpts = PHAssetResourceCreationOptions()
+                    if let origName {
+                        let base = (origName as NSString).deletingPathExtension
+                        resOpts.originalFilename = base + (video ? ".mov" : ".heic")
+                    }
                     try await PHPhotoLibrary.shared().performChanges {
                         let req = PHAssetCreationRequest.forAsset()
-                        req.addResource(with: video ? .video : .photo, fileURL: outURL, options: nil)
+                        req.addResource(with: video ? .video : .photo, fileURL: outURL, options: resOpts)
                         req.creationDate = original.creationDate
                         req.location = original.location
                         PHAssetChangeRequest.deleteAssets([original] as NSArray)
@@ -275,8 +285,16 @@ final class PhotosModel: ObservableObject {
                 cont.resume(returning: av)
             }
         }
-        guard let avAsset,
-              let session = AVAssetExportSession(asset: avAsset,
+        guard let avAsset else { return nil }
+
+        // Si ya es HEVC, recomprimir no aporta nada: fuera.
+        if let track = try? await avAsset.loadTracks(withMediaType: .video).first,
+           let desc = try? await track.load(.formatDescriptions).first,
+           CMFormatDescriptionGetMediaSubType(desc) == kCMVideoCodecType_HEVC {
+            return nil
+        }
+
+        guard let session = AVAssetExportSession(asset: avAsset,
                                                  presetName: AVAssetExportPresetHEVCHighestQuality)
         else { return nil }
         let out = FileManager.default.temporaryDirectory
@@ -332,6 +350,30 @@ final class PhotosModel: ObservableObject {
                 && (UTType($0.uniformTypeIdentifier)?.conforms(to: .rawImage) ?? false)
         }
         return (size, isRaw)
+    }
+
+    /// Códec del vídeo ("HEVC ✓", "H.264", "ProRes"…) para mostrar en la fila.
+    nonisolated static func codecLabel(for asset: PHAsset) async -> String {
+        let opts = PHVideoRequestOptions()
+        opts.isNetworkAccessAllowed = false
+        opts.deliveryMode = .fastFormat
+        let avAsset: AVAsset? = await withCheckedContinuation { cont in
+            PHImageManager.default().requestAVAsset(forVideo: asset, options: opts) { av, _, _ in
+                cont.resume(returning: av)
+            }
+        }
+        guard let avAsset,
+              let track = try? await avAsset.loadTracks(withMediaType: .video).first,
+              let desc = try? await track.load(.formatDescriptions).first
+        else { return "?" }
+        switch CMFormatDescriptionGetMediaSubType(desc) {
+        case kCMVideoCodecType_HEVC:  return "HEVC ✓"
+        case kCMVideoCodecType_H264:  return "H.264"
+        case kCMVideoCodecType_AppleProRes422, kCMVideoCodecType_AppleProRes4444,
+             kCMVideoCodecType_AppleProRes422HQ, kCMVideoCodecType_AppleProRes422LT:
+            return "ProRes"
+        default: return "otro"
+        }
     }
 
     /// Huella visual de Vision sobre una miniatura local (sin descargar de iCloud).

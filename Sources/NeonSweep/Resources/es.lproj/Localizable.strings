@@ -163,4 +163,5 @@
 "OK: %d photos → Recently Deleted (%@)" = "OK: %d fotos → Eliminado recientemente (%@)";
 "WARN: %@" = "AVISO: %@";
 "[ DELETE FROM PHOTOS ]" = "[ ELIMINAR DE FOTOS ]";
+"Already HEVC — recompressing won't shrink it" = "Ya es HEVC — recomprimirlo no lo encoge";
 "macOS asks for confirmation; goes to \"Recently Deleted\" (30 days)" = "macOS pide confirmación; va a \"Eliminado recientemente\" (30 días)";
