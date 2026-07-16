@@ -29,6 +29,7 @@ struct PhotosView: View {
             footer
         }
         .background(Theme.bg)
+        .onAppear { model.refreshStatus() }
     }
 
     private var header: some View {

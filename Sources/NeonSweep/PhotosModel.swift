@@ -64,6 +64,11 @@ final class PhotosModel: ObservableObject {
 
     // MARK: Acceso y escaneo
 
+    /// Lee el estado actual del permiso (p. ej. concedido desde el dashboard).
+    func refreshStatus() {
+        status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    }
+
     func requestAndScan() {
         Task {
             status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
