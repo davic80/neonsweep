@@ -3,6 +3,7 @@ import Photos
 
 struct PhotosView: View {
     @ObservedObject var model: PhotosModel
+    @State private var preview: PreviewTarget?
     private let maxGroupsShown = 60   // tope de render: evita desbordar SwiftUI
 
     var body: some View {
@@ -38,6 +39,7 @@ struct PhotosView: View {
         }
         .background(Theme.bg)
         .onAppear { model.refreshStatus() }
+        .sheet(item: $preview) { AssetPreview(target: $0) }
     }
 
     private var header: some View {
@@ -145,11 +147,15 @@ struct PhotosView: View {
                 .font(Theme.mono(9))
                 .foregroundStyle(isBest ? Theme.neonDim : (isSel ? Theme.neon : Theme.grayDark))
         }
+        .highPriorityGesture(TapGesture(count: 2).onEnded {
+            preview = PreviewTarget(id: m.id, asset: m.asset)
+        })
         .onTapGesture {
             guard !isBest else { return }   // la mejor no se puede marcar
             if isSel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
         }
-        .help(isBest ? t("The best of the group is always kept") : "")
+        .help(isBest ? t("The best of the group is always kept — double-click to preview")
+                     : t("Click to mark, double-click to preview"))
     }
 
     // MARK: Vídeos grandes → HEVC
@@ -216,6 +222,8 @@ struct PhotosView: View {
             }
             .buttonStyle(.plain)
             AssetThumb(asset: m.asset).frame(width: 44, height: 28).clipped()
+                .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
+                .help(t("Click to preview"))
             Text(m.filename ?? "—")
                 .font(Theme.small).foregroundStyle(Theme.gray)
                 .lineLimit(1).truncationMode(.middle)

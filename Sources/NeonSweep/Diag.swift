@@ -15,6 +15,7 @@ enum Diag {
     }
 
     static func runIfRequested() {
+        runExportRawIfRequested()
         runFindIfRequested()
         let args = CommandLine.arguments
         guard let i = args.firstIndex(of: "--diag-videos"), args.count > i + 1 else { return }
@@ -75,6 +76,62 @@ enum Diag {
             }
             sem.wait()
         }
+        exit(0)
+    }
+
+    /// `NeonSweep --diag-export-raw NOMBRE.ARW` — exporta el recurso RAW de ese
+    /// asset a /tmp para poder depurar la conversión fuera de la app.
+    /// Filtra primero por resolución (>4000 px) para no recorrer toda la librería.
+    private static func runExportRawIfRequested() {
+        let args = CommandLine.arguments
+        guard let i = args.firstIndex(of: "--diag-export-raw"), args.count > i + 1 else { return }
+        let wanted = args[i + 1].lowercased()
+
+        var status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        if status == .notDetermined {
+            let sem = DispatchSemaphore(value: 0)
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { st in status = st; sem.signal() }
+            sem.wait()
+        }
+        guard status == .authorized || status == .limited else {
+            out("sin permiso de Fotos"); exit(1)
+        }
+
+        // Álbum inteligente RAW: solo contiene los assets con recurso RAW
+        guard let album = PHAssetCollection.fetchAssetCollections(
+            with: .smartAlbum, subtype: .smartAlbumRAW, options: nil).firstObject else {
+            out("no hay álbum RAW"); exit(1)
+        }
+        let fetch = PHAsset.fetchAssets(in: album, options: nil)
+        out("buscando \(wanted) entre \(fetch.count) RAWs del álbum inteligente…")
+        var checked = 0
+        fetch.enumerateObjects { a, _, stop in
+            autoreleasepool {
+                checked += 1
+                let resources = PHAssetResource.assetResources(for: a)
+                guard let raw = resources.first(where: { $0.originalFilename.lowercased() == wanted }) else { return }
+                out("encontrado: \(raw.originalFilename) | \(raw.uniformTypeIdentifier)")
+                let dest = URL(fileURLWithPath: "/tmp/neonsweep-\(raw.originalFilename)")
+                try? FileManager.default.removeItem(at: dest)
+                let reqOpts = PHAssetResourceRequestOptions()
+                reqOpts.isNetworkAccessAllowed = true
+                var data = Data()
+                let sem = DispatchSemaphore(value: 0)
+                PHAssetResourceManager.default().requestData(for: raw, options: reqOpts) { chunk in
+                    data.append(chunk)
+                } completionHandler: { err in
+                    if let err { out("error: \(err.localizedDescription)") }
+                    else {
+                        try? data.write(to: dest)
+                        out("exportado: \(dest.path) (\(data.count / 1_000_000) MB)")
+                    }
+                    sem.signal()
+                }
+                sem.wait()
+                stop.pointee = true
+            }
+        }
+        out("fin (revisadas \(checked))")
         exit(0)
     }
 

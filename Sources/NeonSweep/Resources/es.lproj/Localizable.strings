@@ -175,7 +175,11 @@
 "[ ALL BUT BEST ]" = "[ TODAS MENOS LA MEJOR ]";
 "Marks the whole group except the best — you can unmark any to keep more" = "Marca todo el grupo menos la mejor — desmarca las que quieras conservar";
 "kept" = "se queda";
-"The best of the group is always kept" = "La mejor del grupo se conserva siempre";
+"The best of the group is always kept — double-click to preview" = "La mejor del grupo se conserva siempre — doble clic para previsualizar";
+"Click to mark, double-click to preview" = "Clic para marcar, doble clic para previsualizar";
+"Click to preview" = "Clic para previsualizar";
+"loading preview…" = "cargando previsualización…";
+"could not load (iCloud?)" = "no se pudo cargar (¿iCloud?)";
 "%d photos // %@" = "%d fotos // %@";
 "… and %d more groups — clean these first and re-analyze" = "… y %d grupos más — limpia estos primero y re-analiza";
 "BEST" = "MEJOR";

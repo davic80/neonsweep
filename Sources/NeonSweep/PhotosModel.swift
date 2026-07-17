@@ -467,9 +467,12 @@ final class PhotosModel: ObservableObject {
         }
         AppLog.log("RAW \(name): \(data.count / 1_000_000) MB de \(rawRes.uniformTypeIdentifier)")
 
-        guard let filter = CIRAWFilter(imageData: data, identifierHint: nil),
-              let image = filter.outputImage else {
-            AppLog.log("RAW \(name): CIRAWFilter no pudo decodificar")
+        // El identifierHint es OBLIGATORIO: sin él, el decodificador RAW no
+        // identifica la cámara y devuelve una imagen vacía (extent infinito).
+        guard let filter = CIRAWFilter(imageData: data, identifierHint: rawRes.uniformTypeIdentifier),
+              let image = filter.outputImage,
+              !image.extent.isInfinite, !image.extent.isEmpty else {
+            AppLog.log("RAW \(name): CIRAWFilter no pudo decodificar (\(rawRes.uniformTypeIdentifier))")
             return nil
         }
 
@@ -487,14 +490,12 @@ final class PhotosModel: ObservableObject {
             AppLog.log("RAW \(name): no se pudo crear el destino HEIC")
             return nil
         }
-        // Conservar EXIF/TIFF/GPS del RAW original
+        // Conservar EXIF/TIFF/GPS/IPTC: ImageIO no sabe leer el ARW directo,
+        // pero el CIImage del CIRAWFilter trae los metadatos en .properties
         var props: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 0.9]
-        if let src = CGImageSourceCreateWithData(data as CFData, nil),
-           let meta = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] {
-            for key in [kCGImagePropertyExifDictionary, kCGImagePropertyTIFFDictionary,
-                        kCGImagePropertyGPSDictionary] {
-                if let v = meta[key] { props[key] = v }
-            }
+        for key in [kCGImagePropertyExifDictionary, kCGImagePropertyTIFFDictionary,
+                    kCGImagePropertyGPSDictionary, kCGImagePropertyIPTCDictionary] {
+            if let v = image.properties[key as String] { props[key] = v }
         }
         CGImageDestinationAddImage(dest, cg, props as CFDictionary)
         guard CGImageDestinationFinalize(dest) else {
