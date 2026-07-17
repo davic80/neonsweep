@@ -193,7 +193,7 @@ struct PhotosView: View {
                     .buttonStyle(.plain)
                     .help(t("Marks every EXACT duplicate except the best of each group"))
                 }
-                Text(t("nothing is pre-checked — you decide // BEST = keeps GPS > resolution > size; tap ☆ to choose another"))
+                Text(t("nothing is pre-checked — you decide // BEST = GPS > oldest real date > resolution > size; tap ☆ to choose another"))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             }
             LazyVStack(alignment: .leading, spacing: 10) {

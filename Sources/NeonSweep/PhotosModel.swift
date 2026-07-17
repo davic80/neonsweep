@@ -395,12 +395,18 @@ final class PhotosModel: ObservableObject {
         return result
     }
 
-    /// Criterio de "mejor": conserva GPS > más resolución > más peso.
-    /// (Las copias re-guardadas suelen perder la ubicación y encoger.)
-    nonisolated static func bestScore(_ p: PhotoAsset) -> (Int, Int, Int64) {
-        (p.asset.location != nil ? 1 : 0,
-         p.asset.pixelWidth * p.asset.pixelHeight,
-         p.fileSize)
+    /// Criterio de "mejor": conserva GPS > la más antigua (con fecha real)
+    /// > más resolución > más peso. Las copias re-guardadas pierden GPS y
+    /// tienen fecha posterior; una fecha ~epoch (1-1-1970, timestamp 0 o
+    /// anterior) es corrupta y nunca gana el criterio de antigüedad.
+    nonisolated static func bestScore(_ p: PhotoAsset) -> (Int, Double, Int, Int64) {
+        let t = p.asset.creationDate?.timeIntervalSince1970
+        // válida si existe y no está pegada al epoch (dos días de margen)
+        let dateScore: Double = (t != nil && t! > 172_800) ? -t! : -.greatestFiniteMagnitude
+        return (p.asset.location != nil ? 1 : 0,
+                dateScore,                                   // más antigua = mayor
+                p.asset.pixelWidth * p.asset.pixelHeight,
+                p.fileSize)
     }
 
     /// El usuario elige otra "mejor" para el grupo; la anterior pasa a ser marcable.
