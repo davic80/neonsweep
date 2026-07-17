@@ -39,8 +39,10 @@ final class PhotosModel: ObservableObject {
     @Published var status: PHAuthorizationStatus = .notDetermined
     @Published var scanning = false
     @Published var optimizing = false
-    @Published var progress = ""
-    @Published var fraction: Double?
+    @Published var progress = ""          // del análisis
+    @Published var fraction: Double?      // del análisis
+    @Published var optProgress = ""       // de la optimización (independiente)
+    @Published var optFraction: Double?
     @Published var groups: [DupeGroup] = []
     @Published var bigVideos: [PhotoAsset] = []
     @Published var rawPhotos: [PhotoAsset] = []
@@ -349,9 +351,9 @@ final class PhotosModel: ObservableObject {
             // FASE 1: convertir todo a ficheros temporales (sin tocar Fotos)
             var ready: [(pa: PhotoAsset, url: URL, newSize: Int64)] = []
             for (i, pa) in targets.enumerated() {
-                progress = String(format: video ? t("recompressing %d/%d…") : t("converting %d/%d…"),
+                optProgress = String(format: video ? t("recompressing %d/%d…") : t("converting %d/%d…"),
                                   i + 1, n)
-                fraction = Double(i) / Double(n)
+                optFraction = Double(i) / Double(n)
                 workingAsset = pa.asset
                 let base = Double(i)
 
@@ -364,7 +366,7 @@ final class PhotosModel: ObservableObject {
                 let outURL = await Task.detached(priority: .userInitiated) {
                     video
                         ? await Self.exportHEVC(pa.asset) { itemFrac in
-                            Task { @MainActor in self.fraction = (base + itemFrac) / Double(n) }
+                            Task { @MainActor in self.optFraction = (base + itemFrac) / Double(n) }
                           }
                         : Self.rawToHEIC(pa.asset)
                 }.value
@@ -391,8 +393,8 @@ final class PhotosModel: ObservableObject {
             var savedTotal: Int64 = 0
             var committedIDs: Set<String> = []
             if !ready.isEmpty {
-                progress = String(format: t("importing %d into Photos…"), ready.count)
-                fraction = nil
+                optProgress = String(format: t("importing %d into Photos…"), ready.count)
+                optFraction = nil
                 do {
                     let batch = ready
                     try await PHPhotoLibrary.shared().performChanges {
@@ -427,8 +429,8 @@ final class PhotosModel: ObservableObject {
             removeFromLists(committedIDs)
             optSelected.subtract(Set(targets.map(\.id)))
             workingAsset = nil
-            progress = ""
-            fraction = nil
+            optProgress = ""
+            optFraction = nil
             optimizing = false
             AppLog.log("OPTIMIZE fin: \(done) ok, \(noGain) sin ganancia, \(failed) errores, ahorro \(formatBytes(savedTotal))")
             lastResult = String(format: t("%@: %d optimized, %d no gain, %d errors — %@ saved (log: ~/Library/Logs/NeonSweep.log)"),

@@ -11,7 +11,10 @@ struct PhotosView: View {
             NeonScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     header
-                    if model.scanning || model.optimizing {
+                    if model.scanning {
+                        ProgressStrip(label: model.progress, fraction: model.fraction)
+                    }
+                    if model.optimizing {
                         HStack(spacing: 8) {
                             if let w = model.workingAsset {
                                 AssetThumb(asset: w)
@@ -19,7 +22,7 @@ struct PhotosView: View {
                                     .overlay(RoundedRectangle(cornerRadius: 3)
                                         .stroke(Theme.neon, lineWidth: 1))
                             }
-                            ProgressStrip(label: model.progress, fraction: model.fraction)
+                            ProgressStrip(label: model.optProgress, fraction: model.optFraction)
                         }
                     }
                     if let d = model.cacheDate, !model.scanning {
@@ -347,7 +350,7 @@ struct PhotosView: View {
     private var footer: some View {
         HStack {
             if model.optimizing {
-                Text(model.progress)
+                Text(model.optProgress)
                     .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
                     .shadow(color: Theme.neon.opacity(0.5), radius: 4)
                 BlinkingCursor()
