@@ -193,7 +193,7 @@ struct PhotosView: View {
                     .buttonStyle(.plain)
                     .help(t("Marks every EXACT duplicate except the best of each group"))
                 }
-                Text(t("nothing is pre-checked — you decide"))
+                Text(t("nothing is pre-checked — you decide // BEST = keeps GPS > resolution > size; tap ☆ to choose another"))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             }
             LazyVStack(alignment: .leading, spacing: 10) {
@@ -238,11 +238,11 @@ struct PhotosView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 6) {
                     ForEach(g.members) { m in
-                        thumbCell(m, isBest: m.id == g.bestID)
+                        thumbCell(m, group: g)
                     }
                 }
             }
-            .frame(height: 118)
+            .frame(height: 132)
         }
     }
 
@@ -257,8 +257,14 @@ struct PhotosView: View {
         }
     }
 
-    private func thumbCell(_ m: PhotoAsset, isBest: Bool) -> some View {
+    private static let timeF: DateFormatter = {
+        let d = DateFormatter(); d.dateFormat = "HH:mm:ss"; return d
+    }()
+
+    private func thumbCell(_ m: PhotoAsset, group g: DupeGroup) -> some View {
+        let isBest = m.id == g.bestID
         let isSel = model.selected.contains(m.id)
+        let hasGPS = m.asset.location != nil
         return VStack(spacing: 2) {
             ZStack(alignment: .topLeading) {
                 AssetThumb(asset: m.asset)
@@ -271,11 +277,29 @@ struct PhotosView: View {
                         .font(Theme.mono(8, .bold)).foregroundStyle(Theme.bg)
                         .padding(.horizontal, 3).padding(.vertical, 1)
                         .background(Theme.neon)
+                } else {
+                    // ☆ arriba a la derecha: quedarse esta en lugar de la actual
+                    HStack {
+                        Spacer()
+                        Button { model.setBest(g, to: m.id) } label: {
+                            Text("☆").font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
+                                .padding(2).background(Theme.bg.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .help(t("Keep this one instead (becomes the BEST)"))
+                    }
                 }
             }
-            Text(isBest ? t("kept") : (isSel ? t("[x] delete") : "[ ] " + formatBytes(m.fileSize)))
+            .frame(width: 92)
+            Text(isBest ? "★ " + t("kept") : (isSel ? t("[x] delete") : "[ ] " + formatBytes(m.fileSize)))
                 .font(Theme.mono(9))
                 .foregroundStyle(isBest ? Theme.neonDim : (isSel ? Theme.neon : Theme.grayDark))
+            // datos para decidir: resolución · GPS · hora
+            Text("\(m.asset.pixelWidth)×\(m.asset.pixelHeight)"
+                 + (hasGPS ? " 📍" : "")
+                 + (m.asset.creationDate.map { " " + Self.timeF.string(from: $0) } ?? ""))
+                .font(Theme.mono(8))
+                .foregroundStyle(hasGPS ? Theme.gray : Theme.grayDark)
         }
         .highPriorityGesture(TapGesture(count: 2).onEnded {
             preview = PreviewTarget(id: m.id, asset: m.asset)
@@ -284,8 +308,20 @@ struct PhotosView: View {
             guard !isBest else { return }   // la mejor no se puede marcar
             if isSel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
         }
-        .help(isBest ? t("The best of the group is always kept — double-click to preview")
-                     : t("Click to mark, double-click to preview"))
+        .help(cellHelp(m, isBest: isBest, hasGPS: hasGPS))
+    }
+
+    private func cellHelp(_ m: PhotoAsset, isBest: Bool, hasGPS: Bool) -> String {
+        var parts: [String] = []
+        if let n = m.filename { parts.append(n) }
+        if let d = m.asset.creationDate {
+            parts.append(DateFormatter.localizedString(from: d, dateStyle: .medium, timeStyle: .medium))
+        }
+        parts.append("\(m.asset.pixelWidth)×\(m.asset.pixelHeight) · \(formatBytes(m.fileSize))")
+        parts.append(hasGPS ? t("has GPS location") : t("no GPS location"))
+        parts.append(isBest ? t("The best of the group is always kept — double-click to preview")
+                            : t("Click to mark, double-click to preview"))
+        return parts.joined(separator: "\n")
     }
 
     // MARK: Vídeos grandes → HEVC

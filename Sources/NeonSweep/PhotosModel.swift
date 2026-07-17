@@ -348,11 +348,7 @@ final class PhotosModel: ObservableObject {
         func closeGroup() {
             if current.count >= 2 {
                 let members = current.map(\.0)
-                let best = members.max {
-                    let a = $0.asset.pixelWidth * $0.asset.pixelHeight
-                    let b = $1.asset.pixelWidth * $1.asset.pixelHeight
-                    return a == b ? $0.fileSize < $1.fileSize : a < b
-                }!
+                let best = members.max { Self.bestScore($0) < Self.bestScore($1) }!
                 let tier: DupeTier = currentWorst < Self.exactThreshold ? .exact
                     : currentWorst < Self.nearThreshold ? .near : .similar
                 result.append(DupeGroup(members: members, tier: tier, bestID: best.id))
@@ -397,6 +393,23 @@ final class PhotosModel: ObservableObject {
         }
         closeGroup()
         return result
+    }
+
+    /// Criterio de "mejor": conserva GPS > más resolución > más peso.
+    /// (Las copias re-guardadas suelen perder la ubicación y encoger.)
+    nonisolated static func bestScore(_ p: PhotoAsset) -> (Int, Int, Int64) {
+        (p.asset.location != nil ? 1 : 0,
+         p.asset.pixelWidth * p.asset.pixelHeight,
+         p.fileSize)
+    }
+
+    /// El usuario elige otra "mejor" para el grupo; la anterior pasa a ser marcable.
+    func setBest(_ g: DupeGroup, to id: String) {
+        guard let idx = groups.firstIndex(where: { $0.id == g.id }),
+              groups[idx].members.contains(where: { $0.id == id }) else { return }
+        groups[idx].bestID = id
+        selected.remove(id)   // la nueva mejor no puede estar marcada
+        saveCache()
     }
 
     /// Marca todo el grupo menos la mejor (la mejor nunca es borrable).

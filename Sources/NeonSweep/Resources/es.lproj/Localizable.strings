@@ -182,6 +182,10 @@
 "[ ALL BUT BEST ]" = "[ TODAS MENOS LA MEJOR ]";
 "Marks the whole group except the best — you can unmark any to keep more" = "Marca todo el grupo menos la mejor — desmarca las que quieras conservar";
 "kept" = "se queda";
+"Keep this one instead (becomes the BEST)" = "Quedarse esta (pasa a ser la MEJOR)";
+"has GPS location" = "con ubicación GPS";
+"no GPS location" = "sin ubicación GPS";
+"nothing is pre-checked — you decide // BEST = keeps GPS > resolution > size; tap ☆ to choose another" = "nada viene premarcado — tú decides // MEJOR = conserva GPS > resolución > peso; pulsa ☆ para elegir otra";
 "The best of the group is always kept — double-click to preview" = "La mejor del grupo se conserva siempre — doble clic para previsualizar";
 "Click to mark, double-click to preview" = "Clic para marcar, doble clic para previsualizar";
 "Click to preview" = "Clic para previsualizar";
