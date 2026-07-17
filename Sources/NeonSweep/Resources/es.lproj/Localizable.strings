@@ -204,5 +204,13 @@
 "apps //  = Apple removable; system apps (SIP) hidden" = "apps //  = Apple desinstalable; las del sistema (SIP) no salen";
 "Already HEVC — recompressing won't shrink it" = "Ya es HEVC — recomprimirlo no lo encoge";
 "DUPE?" = "¿DUPE?";
+"nothing is pre-checked — you decide" = "nada viene premarcado — tú decides";
+"[ MARK ALL EXACT DUPES ]" = "[ MARCAR DUPLICADAS EXACTAS ]";
+"Marks every EXACT duplicate except the best of each group" = "Marca todas las duplicadas EXACTAS menos la mejor de cada grupo";
+"Mark to optimize" = "Marcar para optimizar";
+"[✗ delete]" = "[✗ borrar]";
+"[ delete ]" = "[ borrar ]";
+"Mark this duplicate video for deletion" = "Marcar este vídeo duplicado para borrarlo";
+"importing %d into Photos…" = "importando %d en Fotos…";
 "Same duration, resolution and size as another video — probably a duplicate" = "Misma duración, resolución y tamaño que otro vídeo — probablemente duplicado";
 "macOS asks for confirmation; goes to \"Recently Deleted\" (30 days)" = "macOS pide confirmación; va a \"Eliminado recientemente\" (30 días)";

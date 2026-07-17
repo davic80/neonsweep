@@ -12,7 +12,15 @@ struct PhotosView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     header
                     if model.scanning || model.optimizing {
-                        ProgressStrip(label: model.progress, fraction: model.fraction)
+                        HStack(spacing: 8) {
+                            if let w = model.workingAsset {
+                                AssetThumb(asset: w)
+                                    .frame(width: 40, height: 40).clipped()
+                                    .overlay(RoundedRectangle(cornerRadius: 3)
+                                        .stroke(Theme.neon, lineWidth: 1))
+                            }
+                            ProgressStrip(label: model.progress, fraction: model.fraction)
+                        }
                     }
                     if let d = model.cacheDate, !model.scanning {
                         Text(String(format: t("// saved results from %@ — re-analyze if the library changed"),
@@ -81,6 +89,20 @@ struct PhotosView: View {
             if model.groups.isEmpty && !model.scanning {
                 Text(t("no groups detected (or not analyzed yet)"))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
+            } else {
+                HStack {
+                    Text(t("nothing is pre-checked — you decide"))
+                        .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    Spacer()
+                    Button { model.selectAllExactDupes() } label: {
+                        Text(t("[ MARK ALL EXACT DUPES ]"))
+                            .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neon)
+                            .padding(.vertical, 3).padding(.horizontal, 6)
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .help(t("Marks every EXACT duplicate except the best of each group"))
+                }
             }
             LazyVStack(alignment: .leading, spacing: 10) {
                 ForEach(model.groups.prefix(maxGroupsShown)) { g in
@@ -211,16 +233,17 @@ struct PhotosView: View {
     // MARK: Componentes comunes
 
     private func assetRow(_ m: PhotoAsset) -> some View {
-        let isSel = model.selected.contains(m.id)
+        let isOpt = model.optSelected.contains(m.id)
         return HStack(spacing: 8) {
             Button {
-                if isSel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
+                if isOpt { model.optSelected.remove(m.id) } else { model.optSelected.insert(m.id) }
             } label: {
-                Text(isSel ? "[x]" : "[ ]")
+                Text(isOpt ? "[x]" : "[ ]")
                     .font(Theme.body)
-                    .foregroundStyle(isSel ? Theme.neon : Theme.grayDark)
+                    .foregroundStyle(isOpt ? Theme.neon : Theme.grayDark)
             }
             .buttonStyle(.plain)
+            .help(t("Mark to optimize"))
             AssetThumb(asset: m.asset).frame(width: 44, height: 28).clipped()
                 .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
                 .help(t("Click to preview"))
@@ -238,6 +261,16 @@ struct PhotosView: View {
                     Text(t("DUPE?"))
                         .font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
                         .help(t("Same duration, resolution and size as another video — probably a duplicate"))
+                    let isDel = model.selected.contains(m.id)
+                    Button {
+                        if isDel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
+                    } label: {
+                        Text(isDel ? t("[✗ delete]") : t("[ delete ]"))
+                            .font(Theme.mono(9, .bold))
+                            .foregroundStyle(isDel ? Theme.amber : Theme.grayDark)
+                    }
+                    .buttonStyle(.plain)
+                    .help(t("Mark this duplicate video for deletion"))
                 }
             } else {
                 Text("\(m.asset.pixelWidth)×\(m.asset.pixelHeight)")

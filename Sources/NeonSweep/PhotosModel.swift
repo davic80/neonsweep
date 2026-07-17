@@ -45,7 +45,9 @@ final class PhotosModel: ObservableObject {
     @Published var bigVideos: [PhotoAsset] = []
     @Published var rawPhotos: [PhotoAsset] = []
     @Published var dupeVideoIDs: Set<String> = []   // vídeos con gemelo probable
-    @Published var selected: Set<String> = []
+    @Published var selected: Set<String> = []      // marcadas para BORRAR
+    @Published var optSelected: Set<String> = []   // marcadas para OPTIMIZAR
+    @Published var workingAsset: PHAsset?          // elemento en curso (miniatura)
     @Published var lastResult: String?
     @Published var cacheDate: Date?   // los resultados vienen de análisis guardado
 
@@ -60,8 +62,8 @@ final class PhotosModel: ObservableObject {
         allAssets.filter { selected.contains($0.id) }.map(\.fileSize).reduce(0, +)
     }
     var selectedCount: Int { selected.count }
-    var selectedVideos: [PhotoAsset] { bigVideos.filter { selected.contains($0.id) } }
-    var selectedRaws: [PhotoAsset] { rawPhotos.filter { selected.contains($0.id) } }
+    var selectedVideos: [PhotoAsset] { bigVideos.filter { optSelected.contains($0.id) } }
+    var selectedRaws: [PhotoAsset] { rawPhotos.filter { optSelected.contains($0.id) } }
 
     private var allAssets: [PhotoAsset] {
         groups.flatMap(\.members) + bigVideos + rawPhotos
@@ -258,10 +260,7 @@ final class PhotosModel: ObservableObject {
 
         // Los grupos más gordos primero (la vista además los renderiza con tope)
         groups = result.sorted { $0.totalSize > $1.totalSize }
-        // Preselección: solo duplicadas exactas, todo menos la mejor
-        for g in groups where g.tier == .exact {
-            for m in g.members where m.id != g.bestID { selected.insert(m.id) }
-        }
+        // Nada premarcado: marcar es siempre decisión del usuario
         progress = ""
         fraction = nil
         scanning = false
@@ -272,6 +271,11 @@ final class PhotosModel: ObservableObject {
     /// Marca todo el grupo menos la mejor (la mejor nunca es borrable).
     func selectAllButBest(_ g: DupeGroup) {
         for m in g.members where m.id != g.bestID { selected.insert(m.id) }
+    }
+
+    /// Marca de golpe todas las DUPLICADAS exactas (menos las mejores).
+    func selectAllExactDupes() {
+        for g in groups where g.tier == .exact { selectAllButBest(g) }
     }
 
     // MARK: Borrado (va a "Eliminado recientemente", 30 días recuperable)
@@ -320,14 +324,17 @@ final class PhotosModel: ObservableObject {
         guard !optimizing, !targets.isEmpty else { return }
         optimizing = true
         Task {
-            var savedTotal: Int64 = 0
-            var done = 0, noGain = 0, failed = 0
+            var noGain = 0, failed = 0
             let n = targets.count
             AppLog.log("OPTIMIZE inicio: \(n) elementos, modo \(video ? "vídeo→HEVC" : "RAW→HEIC")")
+
+            // FASE 1: convertir todo a ficheros temporales (sin tocar Fotos)
+            var ready: [(pa: PhotoAsset, url: URL, newSize: Int64)] = []
             for (i, pa) in targets.enumerated() {
                 progress = String(format: video ? t("recompressing %d/%d…") : t("converting %d/%d…"),
                                   i + 1, n)
                 fraction = Double(i) / Double(n)
+                workingAsset = pa.asset
                 let base = Double(i)
 
                 // Los HEVC no dan ahorro: cuenta como "sin ganancia", no error
@@ -350,7 +357,6 @@ final class PhotosModel: ObservableObject {
                     failed += 1
                     continue
                 }
-
                 // Solo merece la pena si encoge DE VERDAD (mínimo 15%)
                 guard newSize < pa.fileSize * 85 / 100 else {
                     AppLog.log("  \(pa.filename ?? pa.id): sin ganancia (\(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB), se conserva el original")
@@ -358,36 +364,51 @@ final class PhotosModel: ObservableObject {
                     noGain += 1
                     continue
                 }
-                do {
-                    let original = pa.asset
-                    // Conservar el nombre original (con la extensión nueva)
-                    let origName = PHAssetResource.assetResources(for: original).first {
-                        $0.type == .video || $0.type == .photo
-                    }?.originalFilename
-                    let resOpts = PHAssetResourceCreationOptions()
-                    if let origName {
-                        let base = (origName as NSString).deletingPathExtension
-                        resOpts.originalFilename = base + (video ? ".mov" : ".heic")
-                    }
-                    try await PHPhotoLibrary.shared().performChanges {
-                        let req = PHAssetCreationRequest.forAsset()
-                        req.addResource(with: video ? .video : .photo, fileURL: outURL, options: resOpts)
-                        req.creationDate = original.creationDate
-                        req.location = original.location
-                        PHAssetChangeRequest.deleteAssets([original] as NSArray)
-                    }
-                    savedTotal += pa.fileSize - newSize
-                    done += 1
-                    AppLog.log("  \(pa.filename ?? pa.id): OK \(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB")
-                } catch {
-                    AppLog.log("  \(pa.filename ?? pa.id): error al importar/borrar en Fotos: \(error.localizedDescription)")
-                    failed += 1
-                }
-                try? FileManager.default.removeItem(at: outURL)
+                AppLog.log("  \(pa.filename ?? pa.id): convertido \(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB")
+                ready.append((pa, outURL, newSize))
             }
+
+            // FASE 2: una única transacción en Fotos → una sola confirmación
+            var done = 0
+            var savedTotal: Int64 = 0
+            var committedIDs: Set<String> = []
+            if !ready.isEmpty {
+                progress = String(format: t("importing %d into Photos…"), ready.count)
+                fraction = nil
+                do {
+                    let batch = ready
+                    try await PHPhotoLibrary.shared().performChanges {
+                        for item in batch {
+                            let origName = PHAssetResource.assetResources(for: item.pa.asset).first {
+                                $0.type == .video || $0.type == .photo
+                            }?.originalFilename
+                            let resOpts = PHAssetResourceCreationOptions()
+                            if let origName {
+                                let base = (origName as NSString).deletingPathExtension
+                                resOpts.originalFilename = base + (video ? ".mov" : ".heic")
+                            }
+                            let req = PHAssetCreationRequest.forAsset()
+                            req.addResource(with: video ? .video : .photo, fileURL: item.url, options: resOpts)
+                            req.creationDate = item.pa.asset.creationDate
+                            req.location = item.pa.asset.location
+                        }
+                        PHAssetChangeRequest.deleteAssets(batch.map(\.pa.asset) as NSArray)
+                    }
+                    done = ready.count
+                    savedTotal = ready.map { $0.pa.fileSize - $0.newSize }.reduce(0, +)
+                    committedIDs = Set(ready.map(\.pa.id))
+                    AppLog.log("  lote importado: \(done) elementos en una transacción")
+                } catch {
+                    AppLog.log("  lote cancelado o fallido: \(error.localizedDescription)")
+                    failed += ready.count
+                }
+                for item in ready { try? FileManager.default.removeItem(at: item.url) }
+            }
+
             FreedTracker.shared.addTrashed(savedTotal)
-            let ids = Set(targets.map(\.id))
-            removeFromLists(ids)
+            removeFromLists(committedIDs)
+            optSelected.subtract(Set(targets.map(\.id)))
+            workingAsset = nil
             progress = ""
             fraction = nil
             optimizing = false
