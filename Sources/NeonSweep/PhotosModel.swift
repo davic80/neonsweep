@@ -80,8 +80,15 @@ final class PhotosModel: ObservableObject {
     private static let windowSize = 8           // comparar con los N vecinos temporales
     private nonisolated static let bigVideoMinBytes: Int64 = 100_000_000
 
-    /// Trabajadores RAW en paralelo: escala con los núcleos (en un M5 de 10 → 6).
-    nonisolated static let rawWorkers = max(3, min(6, ProcessInfo.processInfo.activeProcessorCount - 4))
+    /// Trabajadores RAW en paralelo, adaptado a cualquier Apple Silicon:
+    /// limita por núcleos (dejando 4 al sistema) y por RAM (~200 MB por RAW
+    /// en vuelo → 1 trabajador por cada 2 GB sobre un suelo de 4). Ejemplos:
+    /// M1 8GB→2 · M1 16GB→4 · M5 10c/16GB→6 · M3 Max 48GB→12 (tope).
+    nonisolated static let rawWorkers: Int = {
+        let cores = ProcessInfo.processInfo.activeProcessorCount
+        let ramGB = Int(ProcessInfo.processInfo.physicalMemory / 1_073_741_824)
+        return max(2, min(12, min(cores - 4, (ramGB - 4) / 2)))
+    }()
 
     /// CIContext compartido: crearlo es caro y es seguro entre hilos;
     /// reutilizarlo acelera los lotes y reduce el pico de memoria.
@@ -525,7 +532,7 @@ final class PhotosModel: ObservableObject {
         Task {
             var noGain = 0, failed = 0
             let n = targets.count
-            AppLog.log("OPTIMIZE inicio: \(n) elementos, modo \(video ? "vídeo→HEVC" : "RAW→HEIC")")
+            AppLog.log("OPTIMIZE inicio: \(n) elementos, modo \(video ? "vídeo→HEVC" : "RAW→HEIC (\(Self.rawWorkers) trabajadores)")")
 
             // FASE 1: convertir todo a ficheros temporales (sin tocar Fotos).
             // Vídeos en serie (comparten el codificador hardware); RAWs con
