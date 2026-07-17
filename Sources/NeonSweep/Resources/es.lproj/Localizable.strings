@@ -220,6 +220,11 @@
 "[ CONVERT SELECTED → HEIC ]" = "[ CONVERTIR MARCADOS → HEIC ]";
 "[ WORKING… ]" = "[ TRABAJANDO… ]";
 "recompressing %d/%d…" = "recomprimiendo %d/%d…";
+"[ PAUSE ]" = "[ PAUSA ]";
+"[ RESUME ]" = "[ SEGUIR ]";
+"[ STOP ]" = "[ DETENER ]";
+"PAUSED — " = "EN PAUSA — ";
+"Finishes the current item and imports what's already converted" = "Termina el elemento en curso e importa lo ya convertido";
 "converting %d/%d…" = "convirtiendo %d/%d…";
 "%@: %d optimized, %d no gain, %d errors — %@ saved (log: ~/Library/Logs/NeonSweep.log)" = "%@: %d optimizados, %d sin ganancia, %d errores — %@ ahorrados (log: ~/Library/Logs/NeonSweep.log)";
 "WARN" = "AVISO";

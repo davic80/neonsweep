@@ -98,7 +98,24 @@ struct PhotosView: View {
                                     .overlay(RoundedRectangle(cornerRadius: 3)
                                         .stroke(Theme.neon, lineWidth: 1))
                             }
-                            ProgressStrip(label: model.optProgress, fraction: model.optFraction)
+                            ProgressStrip(label: model.paused ? t("PAUSED — " ) + model.optProgress
+                                                              : model.optProgress,
+                                          fraction: model.optFraction)
+                            Button { model.paused.toggle() } label: {
+                                Text(model.paused ? t("[ RESUME ]") : t("[ PAUSE ]"))
+                                    .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
+                                    .padding(.vertical, 4).padding(.horizontal, 6)
+                                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
+                            }
+                            .buttonStyle(NeonClick())
+                            Button { model.stopRequested = true; model.paused = false } label: {
+                                Text(t("[ STOP ]"))
+                                    .font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
+                                    .padding(.vertical, 4).padding(.horizontal, 6)
+                                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.amber, lineWidth: 1))
+                            }
+                            .buttonStyle(NeonClick())
+                            .help(t("Finishes the current item and imports what's already converted"))
                         }
                     }
                     if let d = model.cacheDate, !model.scanning {

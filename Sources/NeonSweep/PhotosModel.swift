@@ -17,6 +17,16 @@ struct PhotoAsset: Identifiable {
     var filename: String?
 }
 
+/// Booleano con candado, legible desde cualquier hilo (pausa de transcodificación).
+final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var v = false
+    var value: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return v }
+        set { lock.lock(); v = newValue; lock.unlock() }
+    }
+}
+
 /// Perfil de conversión de vídeo.
 enum VideoProfile {
     case optimal      // HEVC, misma resolución, pérdida casi invisible
@@ -49,6 +59,9 @@ final class PhotosModel: ObservableObject {
     @Published var fraction: Double?      // del análisis
     @Published var optProgress = ""       // de la optimización (independiente)
     @Published var optFraction: Double?
+    @Published var paused = false { didSet { pauseFlag.value = paused } }
+    var stopRequested = false
+    let pauseFlag = Flag()   // legible desde los hilos de transcodificación
     @Published var groups: [DupeGroup] = []
     @Published var bigVideos: [PhotoAsset] = []
     @Published var rawPhotos: [PhotoAsset] = []
@@ -500,50 +513,83 @@ final class PhotosModel: ObservableObject {
     private func optimize(_ targets: [PhotoAsset], video: Bool, profile: VideoProfile = .optimal) {
         guard !optimizing, !targets.isEmpty else { return }
         optimizing = true
+        paused = false
+        stopRequested = false
         Task {
             var noGain = 0, failed = 0
             let n = targets.count
             AppLog.log("OPTIMIZE inicio: \(n) elementos, modo \(video ? "vídeo→HEVC" : "RAW→HEIC")")
 
-            // FASE 1: convertir todo a ficheros temporales (sin tocar Fotos)
+            // FASE 1: convertir todo a ficheros temporales (sin tocar Fotos).
+            // Vídeos en serie (comparten el codificador hardware); RAWs con
+            // 3 trabajadores en paralelo. Pausa/stop entre elementos.
             var ready: [(pa: PhotoAsset, url: URL, newSize: Int64)] = []
-            for (i, pa) in targets.enumerated() {
-                optProgress = String(format: video ? t("recompressing %d/%d…") : t("converting %d/%d…"),
-                                  i + 1, n)
-                optFraction = Double(i) / Double(n)
-                workingAsset = pa.asset
-                let base = Double(i)
+            var processed = 0
 
-                // En perfil óptimo, un HEVC no da ahorro; en agresivo sí (reescala)
-                if video, profile == .optimal, await Self.codecLabel(for: pa.asset) == "HEVC ✓" {
-                    AppLog.log("  \(pa.filename ?? pa.id): ya es HEVC, sin ganancia posible")
-                    noGain += 1
-                    continue
-                }
-                let plan = TranscodePlan.make(for: pa, profile: profile)
-                let outURL = await Task.detached(priority: .userInitiated) {
-                    video
-                        ? await Self.exportVideo(pa.asset, plan: plan) { itemFrac in
-                            Task { @MainActor in self.optFraction = (base + itemFrac) / Double(n) }
-                          }
-                        : Self.rawToHEIC(pa.asset)
-                }.value
+            @MainActor func handleResult(_ pa: PhotoAsset, _ outURL: URL?) {
+                processed += 1
+                optProgress = String(format: video ? t("recompressing %d/%d…") : t("converting %d/%d…"),
+                                     processed, n)
+                if !video { optFraction = Double(processed) / Double(n) }
                 guard let outURL,
                       let newSize = (try? FileManager.default.attributesOfItem(atPath: outURL.path))?[.size] as? Int64,
                       newSize > 0 else {
                     AppLog.log("  \(pa.filename ?? pa.id): conversión falló o se omitió (ver líneas previas)")
                     failed += 1
-                    continue
+                    return
                 }
                 // Solo merece la pena si encoge DE VERDAD (mínimo 15%)
                 guard newSize < pa.fileSize * 85 / 100 else {
                     AppLog.log("  \(pa.filename ?? pa.id): sin ganancia (\(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB), se conserva el original")
                     try? FileManager.default.removeItem(at: outURL)
                     noGain += 1
-                    continue
+                    return
                 }
                 AppLog.log("  \(pa.filename ?? pa.id): convertido \(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB")
                 ready.append((pa, outURL, newSize))
+            }
+
+            if video {
+                for (i, pa) in targets.enumerated() {
+                    while paused { try? await Task.sleep(for: .seconds(0.3)) }
+                    if stopRequested { AppLog.log("  detenido por el usuario en \(i)/\(n)"); break }
+                    optProgress = String(format: t("recompressing %d/%d…"), i + 1, n)
+                    optFraction = Double(i) / Double(n)
+                    workingAsset = pa.asset
+                    let base = Double(i)
+                    // En perfil óptimo, un HEVC no da ahorro; en agresivo sí (reescala)
+                    if profile == .optimal, await Self.codecLabel(for: pa.asset) == "HEVC ✓" {
+                        AppLog.log("  \(pa.filename ?? pa.id): ya es HEVC, sin ganancia posible")
+                        noGain += 1
+                        processed += 1
+                        continue
+                    }
+                    let plan = TranscodePlan.make(for: pa, profile: profile)
+                    let flag = pauseFlag
+                    let outURL = await Task.detached(priority: .userInitiated) {
+                        await Self.exportVideo(pa.asset, plan: plan, isPaused: { flag.value }) { itemFrac in
+                            Task { @MainActor in self.optFraction = (base + itemFrac) / Double(n) }
+                        }
+                    }.value
+                    handleResult(pa, outURL)
+                }
+            } else {
+                // RAWs: hasta 3 a la vez (CPU/GPU-bound, escala bien)
+                await withTaskGroup(of: (PhotoAsset, URL?).self) { group in
+                    var it = targets.makeIterator()
+                    @MainActor func addNext() {
+                        guard !stopRequested, let pa = it.next() else { return }
+                        group.addTask { (pa, Self.rawToHEIC(pa.asset)) }
+                    }
+                    for _ in 0..<3 { addNext() }
+                    for await (pa, outURL) in group {
+                        workingAsset = pa.asset
+                        handleResult(pa, outURL)
+                        while paused { try? await Task.sleep(for: .seconds(0.3)) }
+                        addNext()
+                    }
+                }
+                if stopRequested { AppLog.log("  detenido por el usuario en \(processed)/\(n)") }
             }
 
             // FASE 2: importar → verificar → borrar. El borrado (con su única
@@ -676,6 +722,7 @@ final class PhotosModel: ObservableObject {
 
     /// Descarga el AVAsset y lo transcodifica a HEVC según el plan.
     nonisolated static func exportVideo(_ asset: PHAsset, plan: TranscodePlan,
+                                        isPaused: @escaping @Sendable () -> Bool = { false },
                                         progress: @escaping @Sendable (Double) -> Void) async -> URL? {
         let opts = PHVideoRequestOptions()
         opts.isNetworkAccessAllowed = true    // el original puede estar solo en iCloud
@@ -688,7 +735,7 @@ final class PhotosModel: ObservableObject {
         guard let avAsset else { return nil }
         let out = FileManager.default.temporaryDirectory
             .appendingPathComponent("neonsweep-\(UUID().uuidString).mov")
-        let ok = await transcode(avAsset, to: out, plan: plan, progress: progress)
+        let ok = await transcode(avAsset, to: out, plan: plan, isPaused: isPaused, progress: progress)
         if !ok { try? FileManager.default.removeItem(at: out); return nil }
         return out
     }
@@ -696,6 +743,7 @@ final class PhotosModel: ObservableObject {
     /// AVAssetReader → AVAssetWriter: HEVC con bitrate controlado, escala vía
     /// composición de vídeo (respeta la orientación) y audio en passthrough.
     nonisolated static func transcode(_ avAsset: AVAsset, to out: URL, plan: TranscodePlan,
+                                      isPaused: @escaping @Sendable () -> Bool = { false },
                                       progress: @escaping @Sendable (Double) -> Void) async -> Bool {
         do {
             guard let vTrack = try await avAsset.loadTracks(withMediaType: .video).first else { return false }
@@ -754,6 +802,7 @@ final class PhotosModel: ObservableObject {
                 group.enter()
                 vIn.requestMediaDataWhenReady(on: DispatchQueue(label: "ns.video")) {
                     while vIn.isReadyForMoreMediaData {
+                        while isPaused() { Thread.sleep(forTimeInterval: 0.15) }
                         if let sb = vOut.copyNextSampleBuffer() {
                             if duration > 0 {
                                 let t = CMSampleBufferGetPresentationTimeStamp(sb).seconds
