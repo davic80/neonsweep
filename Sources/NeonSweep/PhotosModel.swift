@@ -532,15 +532,23 @@ final class PhotosModel: ObservableObject {
                 ready.append((pa, outURL, newSize))
             }
 
-            // FASE 2: una única transacción en Fotos → una sola confirmación
+            // FASE 2: importar → verificar → borrar. El borrado (con su única
+            // confirmación del sistema) solo llega si los importados existen
+            // e informan dimensiones válidas. Si cancelas el diálogo, conviven
+            // original y convertido: nunca te quedas sin ninguno.
             var done = 0
             var savedTotal: Int64 = 0
             var committedIDs: Set<String> = []
             if !ready.isEmpty {
                 optProgress = String(format: t("importing %d into Photos…"), ready.count)
                 optFraction = nil
+                let batch = ready
+
+                // 2a) importar (esto no pide confirmación)
+                final class Box: @unchecked Sendable { var ids: [String] = [] }
+                let created = Box()
+                var importOK = false
                 do {
-                    let batch = ready
                     try await PHPhotoLibrary.shared().performChanges {
                         for item in batch {
                             let origName = PHAssetResource.assetResources(for: item.pa.asset).first {
@@ -555,16 +563,50 @@ final class PhotosModel: ObservableObject {
                             req.addResource(with: video ? .video : .photo, fileURL: item.url, options: resOpts)
                             req.creationDate = item.pa.asset.creationDate
                             req.location = item.pa.asset.location
+                            if let ph = req.placeholderForCreatedAsset {
+                                created.ids.append(ph.localIdentifier)
+                            }
                         }
-                        PHAssetChangeRequest.deleteAssets(batch.map(\.pa.asset) as NSArray)
                     }
-                    done = ready.count
-                    savedTotal = ready.map { $0.pa.fileSize - $0.newSize }.reduce(0, +)
-                    committedIDs = Set(ready.map(\.pa.id))
-                    AppLog.log("  lote importado: \(done) elementos en una transacción")
+                    importOK = true
                 } catch {
-                    AppLog.log("  lote cancelado o fallido: \(error.localizedDescription)")
-                    failed += ready.count
+                    AppLog.log("  importación fallida (originales intactos): \(error.localizedDescription)")
+                    failed += batch.count
+                }
+
+                // 2b) verificar los recién importados
+                if importOK {
+                    let check = PHAsset.fetchAssets(withLocalIdentifiers: created.ids, options: nil)
+                    var healthy = 0
+                    check.enumerateObjects { a, _, _ in
+                        if a.pixelWidth > 0, a.pixelHeight > 0 { healthy += 1 }
+                    }
+                    if healthy != batch.count {
+                        AppLog.log("  verificación: \(healthy)/\(batch.count) íntegros — NO se borra ningún original")
+                        lastResult = t("WARN: import verification failed — originals untouched (both copies kept)")
+                        failed += batch.count
+                        importOK = false
+                    } else {
+                        AppLog.log("  verificados \(healthy)/\(batch.count) importados")
+                    }
+                }
+
+                // 2c) borrar originales, ya con red de seguridad doble
+                if importOK {
+                    do {
+                        let originals = batch.map(\.pa.asset)
+                        try await PHPhotoLibrary.shared().performChanges {
+                            PHAssetChangeRequest.deleteAssets(originals as NSArray)
+                        }
+                        done = batch.count
+                        savedTotal = batch.map { $0.pa.fileSize - $0.newSize }.reduce(0, +)
+                        committedIDs = Set(batch.map(\.pa.id))
+                        AppLog.log("  originales borrados tras verificación: \(done)")
+                    } catch {
+                        AppLog.log("  borrado cancelado/fallido: conviven original y convertido: \(error.localizedDescription)")
+                        lastResult = t("WARN: deletion cancelled — converted files imported, originals kept (duplicates!)")
+                        failed += batch.count
+                    }
                 }
                 for item in ready { try? FileManager.default.removeItem(at: item.url) }
             }

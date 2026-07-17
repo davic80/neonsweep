@@ -242,5 +242,7 @@
 "[ delete ]" = "[ borrar ]";
 "Mark this duplicate video for deletion" = "Marcar este vídeo duplicado para borrarlo";
 "importing %d into Photos…" = "importando %d en Fotos…";
+"WARN: import verification failed — originals untouched (both copies kept)" = "AVISO: la verificación de importación falló — originales intactos (conviven ambas copias)";
+"WARN: deletion cancelled — converted files imported, originals kept (duplicates!)" = "AVISO: borrado cancelado — convertidos importados, originales conservados (¡duplicados!)";
 "Same duration, resolution and size as another video — probably a duplicate" = "Misma duración, resolución y tamaño que otro vídeo — probablemente duplicado";
 "macOS asks for confirmation; goes to \"Recently Deleted\" (30 days)" = "macOS pide confirmación; va a \"Eliminado recientemente\" (30 días)";
