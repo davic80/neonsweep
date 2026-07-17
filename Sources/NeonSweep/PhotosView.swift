@@ -66,8 +66,11 @@ struct PhotosView: View {
             Text(label)
                 .font(Theme.mono(10, sel.wrappedValue == key ? .bold : .regular))
                 .foregroundStyle(sel.wrappedValue == key ? Theme.neon : Theme.grayDark)
+                .frame(minHeight: 22)
+                .contentShape(Rectangle())
         }
         .buttonStyle(NeonClick())
+        .accessibilityAddTraits(sel.wrappedValue == key ? .isSelected : [])
     }
 
     private func moreBar(total: Int, limit: Binding<Int>, base: Int = 50) -> some View {
@@ -114,6 +117,7 @@ struct PhotosView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(NeonClick())
+        .accessibilityAddTraits(tab == value ? .isSelected : [])
     }
 
     private var rawTitle: String {
@@ -255,11 +259,13 @@ struct PhotosView: View {
             Text("\(label) (\(count))")
                 .font(Theme.mono(10, dupeFilter == tier ? .bold : .regular))
                 .foregroundStyle(dupeFilter == tier ? Theme.neon : Theme.grayDark)
-                .padding(.vertical, 2).padding(.horizontal, 5)
+                .padding(.vertical, 4).padding(.horizontal, 6)
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                     dupeFilter == tier ? Theme.neon : Theme.border, lineWidth: 1))
+                .contentShape(Rectangle())
         }
         .buttonStyle(NeonClick())
+        .accessibilityAddTraits(dupeFilter == tier ? .isSelected : [])
     }
 
     private var dupesSection: some View {
@@ -389,10 +395,12 @@ struct PhotosView: View {
                         Spacer()
                         Button { model.setBest(g, to: m.id) } label: {
                             Text("☆").font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
-                                .padding(2).background(Theme.bg.opacity(0.7))
+                                .padding(4).background(Theme.bg.opacity(0.7))
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(NeonClick())
                         .help(t("Keep this one instead (becomes the BEST)"))
+                        .accessibilityLabel(t("Keep this one instead (becomes the BEST)"))
                     }
                 }
             }
@@ -415,6 +423,8 @@ struct PhotosView: View {
             if isSel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
         }
         .help(cellHelp(m, isBest: isBest, hasGPS: hasGPS))
+        .accessibilityLabel(cellHelp(m, isBest: isBest, hasGPS: hasGPS))
+        .accessibilityValue(isBest ? t("kept") : (isSel ? t("marked") : t("not marked")))
     }
 
     private func cellHelp(_ m: PhotoAsset, isBest: Bool, hasGPS: Bool) -> String {
@@ -542,9 +552,13 @@ struct PhotosView: View {
                     Text(isOpt ? "[x]" : "[ ]")
                         .font(Theme.body)
                         .foregroundStyle(isOpt ? Theme.neon : Theme.grayDark)
+                        .frame(minWidth: 28, minHeight: 24)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(NeonClick())
                 .help(t("Mark to optimize (Shift-click = range from last click)"))
+                .accessibilityLabel((m.filename ?? "") + " — " + t("Mark to optimize (Shift-click = range from last click)"))
+                .accessibilityValue(isOpt ? t("marked") : t("not marked"))
             } else {
                 Text("[·]").font(Theme.body).foregroundStyle(Theme.grayDark)
                     .help(t("Already HEVC — recompressing won't shrink it"))

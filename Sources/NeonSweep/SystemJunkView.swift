@@ -94,8 +94,12 @@ struct JunkView: View {
                 Text(model.checked.contains(e.id) ? "[x]" : "[ ]")
                     .font(Theme.body)
                     .foregroundStyle(model.checked.contains(e.id) ? Theme.neon : Theme.grayDark)
+                    .frame(minWidth: 28, minHeight: 24)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(NeonClick())
+            .accessibilityLabel(e.name)
+            .accessibilityValue(model.checked.contains(e.id) ? t("marked") : t("not marked"))
             Text(e.name)
                 .font(Theme.small).foregroundStyle(Theme.gray)
                 .lineLimit(1).truncationMode(.middle)

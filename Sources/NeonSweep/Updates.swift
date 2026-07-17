@@ -100,6 +100,7 @@ final class UpdatesModel: ObservableObject {
             }
             progress = ""
             working = false
+            SoundFX.shared.play(failed == 0 ? .done : .error)
             lastResult = failed == 0
                 ? String(format: t("OK: %d updated"), ok)
                 : String(format: t("WARN: %d updated, %d failed (see Terminal for details)"), ok, failed)

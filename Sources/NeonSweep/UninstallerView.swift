@@ -67,10 +67,12 @@ struct UninstallerView: View {
                                 if app.hasLoginItem {
                                     Text("●").font(Theme.mono(8)).foregroundStyle(Theme.neonDim)
                                         .help(t("Starts at login (LaunchAgent)"))
+                                        .accessibilityLabel(t("Starts at login (LaunchAgent)"))
                                 }
                                 if app.isRunning {
                                     Text("●").font(Theme.small).foregroundStyle(Theme.amber)
                                         .help(t("Running"))
+                                        .accessibilityLabel(t("Running"))
                                 }
                             }
                             .padding(.vertical, 3).padding(.horizontal, 6)
@@ -165,8 +167,12 @@ struct UninstallerView: View {
                             Text(model.checked.contains(f.id) ? "[x]" : "[ ]")
                                 .font(Theme.body)
                                 .foregroundStyle(model.checked.contains(f.id) ? Theme.neon : Theme.grayDark)
+                                .frame(minWidth: 28, minHeight: 24)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(NeonClick())
+                        .accessibilityLabel((f.path as NSString).lastPathComponent)
+                        .accessibilityValue(model.checked.contains(f.id) ? t("marked") : t("not marked"))
 
                         Text(t(f.location))
                             .font(Theme.small).foregroundStyle(Theme.neonDim)

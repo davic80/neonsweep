@@ -45,6 +45,7 @@ struct RootView: View {
     @ObservedObject private var tracker = FreedTracker.shared
     @ObservedObject private var lang = Lang.shared
     @ObservedObject private var sfx = SoundFX.shared
+    @ObservedObject private var ui = UIScale.shared
     @State private var selected: Module = .dashboard
     @State private var dropTargeted = false
     @State private var sweeping = true   // barrido de arranque
@@ -74,7 +75,7 @@ struct RootView: View {
                 TrashBar()
             }
         }
-        .id(lang.code)   // cambiar de idioma reconstruye la interfaz
+        .id("\(lang.code)-\(ui.factor)")   // idioma o escala reconstruyen la interfaz
         .background(Theme.bg)
         .overlay { if sweeping { SweepOverlay { sweeping = false } } }
         .overlay(alignment: .center) { DropInspectorPanel() }
@@ -147,13 +148,30 @@ struct RootView: View {
                     .font(Theme.mono(9))
                     .foregroundStyle(Theme.grayDark)
                 Spacer()
+                Button { ui.bump(-0.1) } label: {
+                    Text("[A-]").font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .help(t("Text size"))
+                .accessibilityLabel(t("Text size") + " −")
+                Button { ui.bump(0.1) } label: {
+                    Text("[A+]").font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .help(t("Text size"))
+                .accessibilityLabel(t("Text size") + " +")
                 Button { sfx.muted.toggle() } label: {
                     Text(sfx.muted ? "[×♪]" : "[♪]")
                         .font(Theme.mono(10, .bold))
                         .foregroundStyle(sfx.muted ? Theme.grayDark : Theme.neonDim)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(NeonClick())
                 .help(t("Sound on/off"))
+                .accessibilityLabel(t("Sound on/off"))
+                .accessibilityValue(sfx.muted ? "off" : "on")
                 Button { lang.toggle() } label: {
                     Text(lang.code == "es" ? "[ES|en]" : "[es|EN]")
                         .font(Theme.mono(10, .bold))

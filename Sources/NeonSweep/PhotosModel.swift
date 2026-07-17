@@ -284,6 +284,7 @@ final class PhotosModel: ObservableObject {
             saveCache()
             lastResult = String(format: t("OK: incremental — %d new, %d removed"), newCount, deleted.count)
             AppLog.log("SCAN incremental: +\(newCount), -\(deleted.count)")
+            SoundFX.shared.play(.done)
         } catch {
             AppLog.log("SCAN incremental: token inválido (\(error.localizedDescription)) → análisis completo")
             scanning = false
@@ -328,6 +329,7 @@ final class PhotosModel: ObservableObject {
         scanning = false
         cacheDate = nil   // resultados frescos
         saveCache()
+        SoundFX.shared.play(.done)
     }
 
     /// Lee metadatos de un fetch (tamaños, RAW, nombre) fuera del hilo principal.
@@ -692,6 +694,7 @@ final class PhotosModel: ObservableObject {
             optProgress = ""
             optFraction = nil
             optimizing = false
+            SoundFX.shared.play(done > 0 || noGain > 0 ? .done : .error)
             AppLog.log("OPTIMIZE fin: \(done) ok, \(noGain) sin ganancia, \(failed) errores, ahorro \(formatBytes(savedTotal))")
             lastResult = String(format: t("%@: %d optimized, %d no gain, %d errors — %@ saved (log: ~/Library/Logs/NeonSweep.log)"),
                                 failed == 0 ? "OK" : t("WARN"), done, noGain, failed, formatBytes(savedTotal))

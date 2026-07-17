@@ -9,12 +9,19 @@ enum Theme {
     static let neon      = Color(red: 0.224, green: 1.0,   blue: 0.078)   // #39FF14 verde neón
     static let neonDim   = Color(red: 0.15,  green: 0.55,  blue: 0.12)    // verde apagado
     static let gray      = Color(red: 0.62,  green: 0.65,  blue: 0.62)    // texto secundario
-    static let grayDark  = Color(red: 0.35,  green: 0.38,  blue: 0.35)    // texto terciario
+    // Subido de 0.35 a 0.47 para cumplir contraste WCAG en notas informativas
+    static let grayDark  = Color(red: 0.47,  green: 0.50,  blue: 0.47)    // texto terciario
     static let amber     = Color(red: 1.0,   green: 0.72,  blue: 0.20)    // avisos (purgeable)
+
+    /// Factor de escala de texto (accesibilidad); lo gestiona UIScale.
+    static var scaleFactor: CGFloat = {
+        let s = UserDefaults.standard.double(forKey: "ui.scale")
+        return s == 0 ? 1.0 : CGFloat(s)
+    }()
 
     // Tipografía: monospace estilo máquina de escribir (Menlo viene en todos los Macs)
     static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .custom("Menlo", size: size).weight(weight)
+        .custom("Menlo", size: size * scaleFactor).weight(weight)
     }
 
     static let title  = mono(22, .bold)
@@ -116,6 +123,23 @@ struct AsciiBar: View {
             out.append((String(repeating: "░", count: width - used), Theme.grayDark))
         }
         return out
+    }
+}
+
+/// Escala de texto elegida por el usuario ([A-]/[A+]), persistida.
+@MainActor
+final class UIScale: ObservableObject {
+    static let shared = UIScale()
+    @Published var factor: CGFloat {
+        didSet {
+            UserDefaults.standard.set(Double(factor), forKey: "ui.scale")
+            Theme.scaleFactor = factor
+        }
+    }
+    private init() { factor = Theme.scaleFactor }
+
+    func bump(_ delta: CGFloat) {
+        factor = min(1.4, max(0.85, ((factor + delta) * 20).rounded() / 20))
     }
 }
 

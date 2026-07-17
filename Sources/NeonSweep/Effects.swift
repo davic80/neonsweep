@@ -7,7 +7,7 @@ import AVFoundation
 final class SoundFX: ObservableObject {
     static let shared = SoundFX()
 
-    enum Effect { case boot, click, trash }
+    enum Effect { case boot, click, trash, done, error }
 
     @Published var muted: Bool {
         didSet { UserDefaults.standard.set(muted, forKey: "muted") }
@@ -32,6 +32,12 @@ final class SoundFX: ObservableObject {
         buffers[.click] = Self.buffer(Self.square(1800, 0.03, amp: 0.12), format: format)
         // borrado: barrido descendente (algo se va por el desagüe)
         buffers[.trash] = Self.buffer(Self.glide(from: 1000, to: 160, dur: 0.28), format: format)
+        // tarea completada: campanita ascendente
+        buffers[.done] = Self.buffer([
+            Self.square(784, 0.09), Self.square(1046, 0.16),
+        ].flatMap { $0 }, format: format)
+        // fallo: zumbido grave
+        buffers[.error] = Self.buffer(Self.square(180, 0.3, amp: 0.15), format: format)
         try? engine.start()
     }
 

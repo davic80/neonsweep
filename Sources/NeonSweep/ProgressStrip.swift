@@ -65,5 +65,8 @@ struct ProgressStrip: View {
         .padding(.vertical, 8).padding(.horizontal, 12)
         .background(Theme.panel)
         .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neonDim.opacity(0.6), lineWidth: 1))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label +
+            (fraction.map { ", \(Int(($0 * 100).rounded()))%" } ?? ""))
     }
 }
