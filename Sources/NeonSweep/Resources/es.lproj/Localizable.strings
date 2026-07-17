@@ -198,6 +198,11 @@
 "recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted" = "recomprime a HEVC manteniendo resolución; el original queda 30 días en Eliminado recientemente";
 "[ RECOMPRESS SELECTED → HEVC ]" = "[ RECOMPRIMIR MARCADOS → HEVC ]";
 "RAW PHOTOS — %d" = "FOTOS RAW — %d";
+"[date]" = "[fecha]";
+"showing %d of %d" = "mostrando %d de %d";
+"[ ALL ]" = "[ TODOS ]";
+"[ MARK SHOWN ]" = "[ MARCAR VISIBLES ]";
+"Marks the visible rows for conversion — the limit below is your batch size" = "Marca las filas visibles para convertir — el límite de abajo es tu tamaño de lote";
 "convert to HEIC (~90% quality, huge savings); the original stays 30 days in Recently Deleted" = "convierte a HEIC (~90% calidad, ahorro enorme); el original queda 30 días en Eliminado recientemente";
 "[ CONVERT SELECTED → HEIC ]" = "[ CONVERTIR MARCADOS → HEIC ]";
 "[ WORKING… ]" = "[ TRABAJANDO… ]";

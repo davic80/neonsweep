@@ -1,10 +1,62 @@
 import SwiftUI
 import Photos
 
+enum MediaSort { case size, date, name }
+
 struct PhotosView: View {
     @ObservedObject var model: PhotosModel
     @State private var preview: PreviewTarget?
+    @State private var rawSort: MediaSort = .size
+    @State private var videoSort: MediaSort = .size
+    @State private var rawLimit = 50
+    @State private var videoLimit = 50
     private let maxGroupsShown = 60   // tope de render: evita desbordar SwiftUI
+
+    private func sorted(_ list: [PhotoAsset], by key: MediaSort) -> [PhotoAsset] {
+        switch key {
+        case .size: return list.sorted { $0.fileSize > $1.fileSize }
+        case .date: return list.sorted {
+            ($0.asset.creationDate ?? .distantPast) > ($1.asset.creationDate ?? .distantPast)
+        }
+        case .name: return list.sorted {
+            ($0.filename ?? "").localizedCaseInsensitiveCompare($1.filename ?? "") == .orderedAscending
+        }
+        }
+    }
+
+    private func sortPicker(_ sel: Binding<MediaSort>) -> some View {
+        HStack(spacing: 6) {
+            Text("sort:").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            sortButton(t("[size]"), .size, sel)
+            sortButton(t("[date]"), .date, sel)
+            sortButton(t("[name]"), .name, sel)
+        }
+    }
+
+    private func sortButton(_ label: String, _ key: MediaSort, _ sel: Binding<MediaSort>) -> some View {
+        Button { sel.wrappedValue = key } label: {
+            Text(label)
+                .font(Theme.mono(10, sel.wrappedValue == key ? .bold : .regular))
+                .foregroundStyle(sel.wrappedValue == key ? Theme.neon : Theme.grayDark)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func moreBar(total: Int, limit: Binding<Int>) -> some View {
+        HStack(spacing: 10) {
+            Text(String(format: t("showing %d of %d"), min(limit.wrappedValue, total), total))
+                .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            if total > limit.wrappedValue {
+                Button { limit.wrappedValue += 200 } label: {
+                    Text("[+200]").font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
+                }.buttonStyle(.plain)
+                Button { limit.wrappedValue = total } label: {
+                    Text(t("[ ALL ]")).font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
+                }.buttonStyle(.plain)
+            }
+            Spacer()
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -224,11 +276,16 @@ struct PhotosView: View {
                 if optimizableVideos.isEmpty {
                     Text(t("everything already in HEVC ✓"))
                         .font(Theme.body).foregroundStyle(Theme.neonDim)
+                } else {
+                    sortPicker($videoSort)
                 }
                 LazyVStack(alignment: .leading, spacing: 3) {
-                    ForEach(optimizableVideos.prefix(30)) { m in
+                    ForEach(sorted(optimizableVideos, by: videoSort).prefix(videoLimit)) { m in
                         assetRow(m)
                     }
+                }
+                if !optimizableVideos.isEmpty {
+                    moreBar(total: optimizableVideos.count, limit: $videoLimit)
                 }
                 if !hevcVideos.isEmpty {
                     Button { showHEVC.toggle() } label: {
@@ -239,7 +296,7 @@ struct PhotosView: View {
                     .buttonStyle(.plain)
                     if showHEVC {
                         LazyVStack(alignment: .leading, spacing: 3) {
-                            ForEach(hevcVideos.prefix(30)) { m in
+                            ForEach(sorted(hevcVideos, by: videoSort).prefix(videoLimit)) { m in
                                 assetRow(m, optimizable: false)
                             }
                         }
@@ -250,6 +307,10 @@ struct PhotosView: View {
     }
 
     // MARK: RAW → HEIC
+
+    private var shownRaws: [PhotoAsset] {
+        Array(sorted(model.rawPhotos, by: rawSort).prefix(rawLimit))
+    }
 
     private var rawSection: some View {
         TerminalPanel(title: String(format: t("RAW PHOTOS — %d"), model.rawPhotos.count)) {
@@ -265,11 +326,22 @@ struct PhotosView: View {
                         count: model.selectedRaws.count
                     ) { model.convertSelectedRaws() }
                 }
+                HStack {
+                    sortPicker($rawSort)
+                    Spacer()
+                    Button { model.optSelected.formUnion(shownRaws.map(\.id)) } label: {
+                        Text(t("[ MARK SHOWN ]"))
+                            .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
+                    }
+                    .buttonStyle(.plain)
+                    .help(t("Marks the visible rows for conversion — the limit below is your batch size"))
+                }
                 LazyVStack(alignment: .leading, spacing: 3) {
-                    ForEach(model.rawPhotos.prefix(40)) { m in
+                    ForEach(shownRaws) { m in
                         assetRow(m)
                     }
                 }
+                moreBar(total: model.rawPhotos.count, limit: $rawLimit)
             }
         }
     }
