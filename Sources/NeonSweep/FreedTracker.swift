@@ -38,6 +38,7 @@ final class FreedTracker: ObservableObject {
     func addTrashed(_ bytes: Int64) {
         guard bytes > 0 else { return }
         sessionTrashed += bytes
+        SoundFX.shared.play(.trash)
     }
 
     /// Algo se liberó definitivamente (no pasa o ya salió de la Papelera).
@@ -48,6 +49,7 @@ final class FreedTracker: ObservableObject {
         }
         todayPurged += bytes
         allTimePurged += bytes
+        SoundFX.shared.play(.trash)
         UserDefaults.standard.set(Int(allTimePurged), forKey: Self.key)
         UserDefaults.standard.set(Int(todayPurged), forKey: Self.todayKey)
         UserDefaults.standard.set(Self.todayStamp, forKey: Self.todayDateKey)

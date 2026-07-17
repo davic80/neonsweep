@@ -33,7 +33,7 @@ struct UpdatesView: View {
                     .font(Theme.mono(12, .bold))
                     .foregroundStyle(model.scanning || model.working ? Theme.grayDark : Theme.neon)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.scanning || model.working)
         }
     }
@@ -71,7 +71,7 @@ struct UpdatesView: View {
                             .padding(.vertical, 3).padding(.horizontal, 6)
                             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.border, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(NeonClick())
                 }
             } else if model.masItems.isEmpty && model.scanned && !model.scanning {
                 Text(t("everything up to date ✓"))
@@ -104,7 +104,7 @@ struct UpdatesView: View {
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                         model.working ? Theme.border : Theme.neon, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.working)
         }
     }
@@ -126,7 +126,7 @@ struct UpdatesView: View {
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                         model.items.isEmpty || model.working ? Theme.border : Theme.neon, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.items.isEmpty || model.working)
         }
         .padding(.horizontal, 20).padding(.vertical, 12)

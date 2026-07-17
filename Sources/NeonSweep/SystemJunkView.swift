@@ -41,7 +41,7 @@ struct JunkView: View {
                     .font(Theme.mono(12, .bold))
                     .foregroundStyle(model.scanning ? Theme.grayDark : Theme.neon)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.scanning)
         }
     }
@@ -58,14 +58,14 @@ struct JunkView: View {
                 if cat.scanned && !cat.entries.isEmpty {
                     Button { model.toggleAll(in: cat) } label: {
                         Text(t("[all]")).font(Theme.small).foregroundStyle(Theme.neonDim)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(NeonClick())
                     Button {
                         if model.expanded.contains(cat.id) { model.expanded.remove(cat.id) }
                         else { model.expanded.insert(cat.id) }
                     } label: {
                         Text(model.expanded.contains(cat.id) ? "[-]" : "[+]")
                             .font(Theme.body).foregroundStyle(Theme.neon)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(NeonClick())
                 }
             }
 
@@ -95,7 +95,7 @@ struct JunkView: View {
                     .font(Theme.body)
                     .foregroundStyle(model.checked.contains(e.id) ? Theme.neon : Theme.grayDark)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             Text(e.name)
                 .font(Theme.small).foregroundStyle(Theme.gray)
                 .lineLimit(1).truncationMode(.middle)
@@ -127,7 +127,7 @@ struct JunkView: View {
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                         model.checkedCount == 0 ? Theme.border : Theme.neon, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.checkedCount == 0)
             .confirmationDialog(
                 String(format: t("Move %d items (%@) to the Trash?"),

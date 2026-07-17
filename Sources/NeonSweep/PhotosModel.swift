@@ -442,7 +442,21 @@ final class PhotosModel: ObservableObject {
     func delete(ids requested: Set<String>) {
         // Red de seguridad: la "mejor" de cada grupo jamás entra en el borrado
         let bests = Set(groups.map(\.bestID))
-        let ids = requested.intersection(selected).subtracting(bests)
+        performDelete(ids: requested.intersection(selected).subtracting(bests))
+    }
+
+    /// Borra TODO el grupo, incluida la MEJOR — decisión explícita del usuario
+    /// (a veces el set completo es basura). Confirmación del sistema mediante.
+    func deleteWholeGroup(_ g: DupeGroup) {
+        performDelete(ids: Set(g.members.map(\.id)))
+    }
+
+    /// Marca todos los grupos de un nivel (menos la mejor de cada uno).
+    func selectAll(tier: DupeTier) {
+        for g in groups where g.tier == tier { selectAllButBest(g) }
+    }
+
+    private func performDelete(ids: Set<String>) {
         guard !ids.isEmpty else { return }
         let targets = allAssets.filter { ids.contains($0.id) }
         let bytes = targets.map(\.fileSize).reduce(0, +)

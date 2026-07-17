@@ -235,8 +235,11 @@
 "all" = "todas";
 "[ DELETE (%d) ]" = "[ BORRAR (%d) ]";
 "Deletes only this group's marked photos (system asks to confirm)" = "Borra solo las marcadas de este grupo (el sistema pide confirmación)";
-"[ MARK ALL EXACT DUPES ]" = "[ MARCAR DUPLICADAS EXACTAS ]";
-"Marks every EXACT duplicate except the best of each group" = "Marca todas las duplicadas EXACTAS menos la mejor de cada grupo";
+"[ MARK ALL: %@ ]" = "[ MARCAR TODAS: %@ ]";
+"Marks every group of this tier except the best of each" = "Marca todos los grupos de este nivel menos la mejor de cada uno";
+"[ DELETE WHOLE SET ]" = "[ BORRAR SET ENTERO ]";
+"Deletes ALL photos in this set, INCLUDING the best (system asks to confirm)" = "Borra TODAS las fotos de este set, INCLUIDA la mejor (el sistema pide confirmación)";
+"Sound on/off" = "Sonido sí/no";
 "Mark to optimize" = "Marcar para optimizar";
 "[✗ delete]" = "[✗ borrar]";
 "[ delete ]" = "[ borrar ]";

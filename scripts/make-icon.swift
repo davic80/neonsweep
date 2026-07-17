@@ -33,13 +33,13 @@ let shadow = NSShadow()
 shadow.shadowColor = neon.withAlphaComponent(0.85)
 shadow.shadowBlurRadius = 46
 
-let font = NSFont(name: "Menlo-Bold", size: 210) ?? NSFont.monospacedSystemFont(ofSize: 210, weight: .bold)
+let font = NSFont(name: "Menlo-Bold", size: 170) ?? NSFont.monospacedSystemFont(ofSize: 170, weight: .bold)
 let attrs: [NSAttributedString.Key: Any] = [
     .font: font,
     .foregroundColor: neon,
     .shadow: shadow,
 ]
-let text = "clean_" as NSString
+let text = "neon\nsweep_" as NSString
 let bounds = text.size(withAttributes: attrs)
 let tx: CGFloat, ty: CGFloat
 switch position {
@@ -49,9 +49,9 @@ case "center":  // centrado clásico
 case "bottom":  // comando esperando intro: abajo a la izquierda
     tx = inset + 90
     ty = inset + 80
-default:        // "top*": prompt arriba a la izquierda (elegido)
-    tx = inset + 90
-    ty = size - inset - bounds.height - 70
+default:        // "top*": prompt arriba a la izquierda (elegido), con aire
+    tx = inset + 110
+    ty = size - inset - bounds.height - 110
 }
 text.draw(at: NSPoint(x: tx, y: ty), withAttributes: attrs)
 

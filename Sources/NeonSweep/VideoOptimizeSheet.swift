@@ -37,7 +37,7 @@ struct VideoOptimizeSheet: View {
                         .padding(.vertical, 4).padding(.horizontal, 8)
                         .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.border, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .keyboardShortcut(.cancelAction)
             }
         }
@@ -99,7 +99,7 @@ struct VideoOptimizeSheet: View {
                         .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                             disabled || model.optimizing ? Theme.border : Theme.neon, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .disabled(disabled || model.optimizing)
             }
         }

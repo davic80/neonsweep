@@ -47,7 +47,7 @@ struct DashboardView: View {
                     .font(Theme.mono(12, .bold))
                     .foregroundStyle(model.scanning ? Theme.grayDark : Theme.neon)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.scanning)
         }
     }
@@ -100,7 +100,7 @@ struct DashboardView: View {
                         .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                             purge.snapshots.isEmpty || purge.working ? Theme.border : Theme.amber, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .disabled(purge.snapshots.isEmpty || purge.working)
                 .confirmationDialog(
                     String(format: t("Delete %d local Time Machine snapshots?"), purge.snapshots.count),

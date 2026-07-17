@@ -26,7 +26,7 @@ struct TrashBar: View {
                     .padding(.vertical, 4).padding(.horizontal, 7)
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.border, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             Button { confirming = true } label: {
                 Text(trash.emptying ? t("[ EMPTYING… ]") : t("[ EMPTY ]"))
                     .font(Theme.mono(11, .bold))
@@ -35,7 +35,7 @@ struct TrashBar: View {
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                         trash.size == 0 || trash.emptying ? Theme.border : Theme.amber, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(trash.size == 0 || trash.emptying)
             .help(t("Irreversible: permanently deletes everything in the Trash"))
             .confirmationDialog(

@@ -44,8 +44,10 @@ struct RootView: View {
     @StateObject private var updates = UpdatesModel()
     @ObservedObject private var tracker = FreedTracker.shared
     @ObservedObject private var lang = Lang.shared
+    @ObservedObject private var sfx = SoundFX.shared
     @State private var selected: Module = .dashboard
     @State private var dropTargeted = false
+    @State private var sweeping = true   // barrido de arranque
 
     var body: some View {
         HStack(spacing: 0) {
@@ -74,6 +76,7 @@ struct RootView: View {
         }
         .id(lang.code)   // cambiar de idioma reconstruye la interfaz
         .background(Theme.bg)
+        .overlay { if sweeping { SweepOverlay { sweeping = false } } }
         .overlay(alignment: .center) { DropInspectorPanel() }
         .overlay {
             if dropTargeted {
@@ -94,6 +97,7 @@ struct RootView: View {
         .onAppear {
             model.scan()
             TrashModel.shared.refresh()
+            SoundFX.shared.play(.boot)
         }
     }
 
@@ -134,7 +138,7 @@ struct RootView: View {
                     .padding(.vertical, 6)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
             }
             Spacer()
             freedCounter
@@ -143,12 +147,19 @@ struct RootView: View {
                     .font(Theme.mono(9))
                     .foregroundStyle(Theme.grayDark)
                 Spacer()
+                Button { sfx.muted.toggle() } label: {
+                    Text(sfx.muted ? "[×♪]" : "[♪]")
+                        .font(Theme.mono(10, .bold))
+                        .foregroundStyle(sfx.muted ? Theme.grayDark : Theme.neonDim)
+                }
+                .buttonStyle(NeonClick())
+                .help(t("Sound on/off"))
                 Button { lang.toggle() } label: {
                     Text(lang.code == "es" ? "[ES|en]" : "[es|EN]")
                         .font(Theme.mono(10, .bold))
                         .foregroundStyle(Theme.neonDim)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .help("Español / English")
             }
             .padding(.top, 10)

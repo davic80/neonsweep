@@ -41,7 +41,7 @@ struct PhotosView: View {
                 .font(Theme.mono(10, sel.wrappedValue == key ? .bold : .regular))
                 .foregroundStyle(sel.wrappedValue == key ? Theme.neon : Theme.grayDark)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NeonClick())
     }
 
     private func moreBar(total: Int, limit: Binding<Int>) -> some View {
@@ -51,10 +51,10 @@ struct PhotosView: View {
             if total > limit.wrappedValue {
                 Button { limit.wrappedValue += 200 } label: {
                     Text("[+200]").font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
-                }.buttonStyle(.plain)
+                }.buttonStyle(NeonClick())
                 Button { limit.wrappedValue = total } label: {
                     Text(t("[ ALL ]")).font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
-                }.buttonStyle(.plain)
+                }.buttonStyle(NeonClick())
             }
             Spacer()
         }
@@ -122,7 +122,7 @@ struct PhotosView: View {
                         .font(Theme.mono(11))
                         .foregroundStyle(model.optimizing ? Theme.grayDark : Theme.neonDim)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .disabled(model.optimizing)
                 .help(t("Full analysis from scratch (slow with big libraries)"))
             }
@@ -132,7 +132,7 @@ struct PhotosView: View {
                     .font(Theme.mono(12, .bold))
                     .foregroundStyle(model.scanning || model.optimizing ? Theme.grayDark : Theme.neon)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.scanning || model.optimizing)
             .help(model.hasResults ? t("Only processes what changed since the last analysis") : "")
         }
@@ -148,7 +148,7 @@ struct PhotosView: View {
                     .padding(.vertical, 6).padding(.horizontal, 10)
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
         }
     }
 
@@ -171,7 +171,7 @@ struct PhotosView: View {
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                     dupeFilter == tier ? Theme.neon : Theme.border, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NeonClick())
     }
 
     private var dupesSection: some View {
@@ -186,14 +186,15 @@ struct PhotosView: View {
                     tierChip(t("NEAR-DUPLICATES"), .near, count: tierCount(.near))
                     tierChip(t("SIMILAR"), .similar, count: tierCount(.similar))
                     Spacer()
-                    Button { model.selectAllExactDupes() } label: {
-                        Text(t("[ MARK ALL EXACT DUPES ]"))
+                    let bulkTier = dupeFilter ?? .exact
+                    Button { model.selectAll(tier: bulkTier) } label: {
+                        Text(String(format: t("[ MARK ALL: %@ ]"), tierName(bulkTier)))
                             .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neon)
                             .padding(.vertical, 3).padding(.horizontal, 6)
                             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
-                    .help(t("Marks every EXACT duplicate except the best of each group"))
+                    .buttonStyle(NeonClick())
+                    .help(t("Marks every group of this tier except the best of each"))
                 }
                 Text(t("nothing is pre-checked — you decide // BEST = GPS > oldest real date > resolution > size; tap ☆ to choose another"))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
@@ -223,7 +224,7 @@ struct PhotosView: View {
                     Text(t("[ ALL BUT BEST ]"))
                         .font(Theme.mono(9, .bold)).foregroundStyle(Theme.neonDim)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .help(t("Marks the whole group except the best — you can unmark any to keep more"))
                 if !markedInGroup.isEmpty {
                     Button { model.delete(ids: Set(markedInGroup.map(\.id))) } label: {
@@ -232,10 +233,17 @@ struct PhotosView: View {
                             .padding(.vertical, 2).padding(.horizontal, 5)
                             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.amber, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(NeonClick())
                     .disabled(model.optimizing)
                     .help(t("Deletes only this group's marked photos (system asks to confirm)"))
                 }
+                Button { model.deleteWholeGroup(g) } label: {
+                    Text(t("[ DELETE WHOLE SET ]"))
+                        .font(Theme.mono(9, .bold)).foregroundStyle(Theme.grayDark)
+                }
+                .buttonStyle(NeonClick())
+                .disabled(model.optimizing)
+                .help(t("Deletes ALL photos in this set, INCLUDING the best (system asks to confirm)"))
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 6) {
@@ -245,6 +253,14 @@ struct PhotosView: View {
                 }
             }
             .frame(height: 132)
+        }
+    }
+
+    private func tierName(_ tier: DupeTier) -> String {
+        switch tier {
+        case .exact: return t("DUPLICATES")
+        case .near: return t("NEAR-DUPLICATES")
+        case .similar: return t("SIMILAR")
         }
     }
 
@@ -287,7 +303,7 @@ struct PhotosView: View {
                             Text("☆").font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
                                 .padding(2).background(Theme.bg.opacity(0.7))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(NeonClick())
                         .help(t("Keep this one instead (becomes the BEST)"))
                     }
                 }
@@ -372,7 +388,7 @@ struct PhotosView: View {
                              String(format: t("%d already HEVC — nothing to gain"), hevcVideos.count))
                             .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(NeonClick())
                     if showHEVC {
                         LazyVStack(alignment: .leading, spacing: 3) {
                             ForEach(sorted(hevcVideos, by: videoSort).prefix(videoLimit)) { m in
@@ -412,7 +428,7 @@ struct PhotosView: View {
                         Text(t("[ MARK SHOWN ]"))
                             .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(NeonClick())
                     .help(t("Marks the visible rows for conversion — the limit below is your batch size"))
                 }
                 LazyVStack(alignment: .leading, spacing: 3) {
@@ -438,7 +454,7 @@ struct PhotosView: View {
                         .font(Theme.body)
                         .foregroundStyle(isOpt ? Theme.neon : Theme.grayDark)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .help(t("Mark to optimize"))
             } else {
                 Text("[·]").font(Theme.body).foregroundStyle(Theme.grayDark)
@@ -455,7 +471,7 @@ struct PhotosView: View {
                         .underline()
                         .lineLimit(1).truncationMode(.middle)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .frame(maxWidth: 180, alignment: .leading)
                 .help(t("Click for conversion options (optimal / max compression)"))
             } else {
@@ -486,7 +502,7 @@ struct PhotosView: View {
                             .font(Theme.mono(9, .bold))
                             .foregroundStyle(isDel ? Theme.amber : Theme.grayDark)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(NeonClick())
                     .help(t("Mark this duplicate video for deletion"))
                 }
             } else {
@@ -508,7 +524,7 @@ struct PhotosView: View {
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                     count == 0 || model.optimizing ? Theme.border : Theme.neon, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NeonClick())
         .disabled(count == 0 || model.optimizing)
     }
 
@@ -546,7 +562,7 @@ struct PhotosView: View {
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                         model.selectedCount == 0 || model.optimizing ? Theme.border : Theme.neon, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.selectedCount == 0 || model.optimizing)
             .help(t("macOS asks for confirmation; goes to \"Recently Deleted\" (30 days)"))
         }

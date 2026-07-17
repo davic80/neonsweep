@@ -80,7 +80,7 @@ struct UninstallerView: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(NeonClick())
                     }
                 }
             }
@@ -111,7 +111,7 @@ struct UninstallerView: View {
                 .font(Theme.mono(10, model.sortKey == key ? .bold : .regular))
                 .foregroundStyle(model.sortKey == key ? Theme.neon : Theme.grayDark)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NeonClick())
     }
 
     // MARK: Detalle de restos
@@ -166,7 +166,7 @@ struct UninstallerView: View {
                                 .font(Theme.body)
                                 .foregroundStyle(model.checked.contains(f.id) ? Theme.neon : Theme.grayDark)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(NeonClick())
 
                         Text(t(f.location))
                             .font(Theme.small).foregroundStyle(Theme.neonDim)
@@ -208,7 +208,7 @@ struct UninstallerView: View {
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                         model.checked.isEmpty || app.isRunning ? Theme.border : Theme.neon, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NeonClick())
             .disabled(model.checked.isEmpty || app.isRunning)
             .confirmationDialog(
                 String(format: t("Move %d items (%@) to the Trash?"),

@@ -91,7 +91,7 @@ struct PermissionsPanel: View {
                         .padding(.vertical, 3).padding(.horizontal, 6)
                         .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
             } else {
                 Text("OK").font(Theme.mono(11, .bold)).foregroundStyle(Theme.neonDim)
             }

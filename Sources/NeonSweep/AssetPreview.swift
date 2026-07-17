@@ -44,7 +44,7 @@ struct AssetPreview: View {
                         .padding(.vertical, 4).padding(.horizontal, 8)
                         .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NeonClick())
                 .keyboardShortcut(.cancelAction)   // Esc cierra
             }
             .padding(10)
