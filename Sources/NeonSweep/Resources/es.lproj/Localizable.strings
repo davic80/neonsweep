@@ -116,6 +116,19 @@
 "OK: Trash emptied — %@ truly freed" = "OK: Papelera vaciada — %@ liberados de verdad";
 "WARN: could not empty (%@)" = "AVISO: no se pudo vaciar (%@)";
 
+/* Purgable */
+"PURGEABLE — %@" = "PURGABLE — %@";
+"// space macOS frees on its own when needed: Time Machine local snapshots, evictable iCloud files and system caches. Only the snapshots can be purged on demand:" = "// espacio que macOS libera solo cuando hace falta: snapshots locales de Time Machine, ficheros de iCloud evictables y cachés del sistema. Solo los snapshots se pueden purgar a demanda:";
+"Time Machine local snapshots: %d" = "Snapshots locales de Time Machine: %d";
+"latest" = "último";
+"[ DELETE SNAPSHOTS ]" = "[ BORRAR SNAPSHOTS ]";
+"[ PURGING… ]" = "[ PURGANDO… ]";
+"Delete %d local Time Machine snapshots?" = "¿Borrar %d snapshots locales de Time Machine?";
+"Delete snapshots" = "Borrar snapshots";
+"They are temporary safety copies between Time Machine backups; the next backup recreates them. If you never use Time Machine there is nothing to lose." = "Son copias temporales entre backups de Time Machine; el próximo backup los recrea. Si no usas Time Machine, no pierdes nada.";
+"OK: snapshots deleted — %@ truly freed" = "OK: snapshots borrados — %@ liberados de verdad";
+"WARN: %d snapshots could not be deleted (admin required?)" = "AVISO: %d snapshots no se pudieron borrar (¿requiere admin?)";
+
 /* Permisos */
 "PERMISSIONS" = "PERMISOS";
 "// grant everything once here and the modules won't nag you later" = "// concédelo todo una vez aquí y los módulos no te interrumpirán después";

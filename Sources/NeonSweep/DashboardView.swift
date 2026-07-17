@@ -2,6 +2,8 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var model: ScanModel
+    @ObservedObject private var purge = PurgeModel.shared
+    @State private var confirmingPurge = false
 
     var body: some View {
         NeonScrollView {
@@ -12,6 +14,7 @@ struct DashboardView: View {
                 }
                 PermissionsPanel()
                 diskPanel
+                purgeablePanel
                 HStack(alignment: .top, spacing: 14) {
                     icloudPanel
                     recoverablePanel
@@ -68,6 +71,51 @@ struct DashboardView: View {
                     .font(Theme.small).foregroundStyle(Theme.gray)
             }
         }
+    }
+
+    // MARK: Purgable
+
+    private var purgeablePanel: some View {
+        TerminalPanel(title: String(format: t("PURGEABLE — %@"), formatBytes(model.disk.purgeable))) {
+            Text(t("// space macOS frees on its own when needed: Time Machine local snapshots, evictable iCloud files and system caches. Only the snapshots can be purged on demand:"))
+                .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            HStack {
+                Text(String(format: t("Time Machine local snapshots: %d"), purge.snapshots.count))
+                    .font(Theme.body)
+                    .foregroundStyle(purge.snapshots.isEmpty ? Theme.grayDark : Theme.gray)
+                if let last = purge.snapshots.last {
+                    Text("// \(t("latest")) \(last)")
+                        .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                }
+                Spacer()
+                if let r = purge.lastResult {
+                    Text(r).font(Theme.small)
+                        .foregroundStyle(r.hasPrefix("OK") ? Theme.neon : Theme.amber)
+                }
+                Button { confirmingPurge = true } label: {
+                    Text(purge.working ? t("[ PURGING… ]") : t("[ DELETE SNAPSHOTS ]"))
+                        .font(Theme.mono(11, .bold))
+                        .foregroundStyle(purge.snapshots.isEmpty || purge.working ? Theme.grayDark : Theme.amber)
+                        .padding(.vertical, 3).padding(.horizontal, 6)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                            purge.snapshots.isEmpty || purge.working ? Theme.border : Theme.amber, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(purge.snapshots.isEmpty || purge.working)
+                .confirmationDialog(
+                    String(format: t("Delete %d local Time Machine snapshots?"), purge.snapshots.count),
+                    isPresented: $confirmingPurge
+                ) {
+                    Button(t("Delete snapshots"), role: .destructive) {
+                        purge.purgeSnapshots(scanModel: model)
+                    }
+                    Button(t("Cancel"), role: .cancel) {}
+                } message: {
+                    Text(t("They are temporary safety copies between Time Machine backups; the next backup recreates them. If you never use Time Machine there is nothing to lose."))
+                }
+            }
+        }
+        .onAppear { purge.list() }
     }
 
     private func legend(_ char: String, _ color: Color, _ label: String, _ bytes: Int64) -> some View {
