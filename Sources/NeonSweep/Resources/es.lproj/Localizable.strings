@@ -219,6 +219,9 @@
 "Already HEVC — recompressing won't shrink it" = "Ya es HEVC — recomprimirlo no lo encoge";
 "DUPE?" = "¿DUPE?";
 "nothing is pre-checked — you decide" = "nada viene premarcado — tú decides";
+"all" = "todas";
+"[ DELETE (%d) ]" = "[ BORRAR (%d) ]";
+"Deletes only this group's marked photos (system asks to confirm)" = "Borra solo las marcadas de este grupo (el sistema pide confirmación)";
 "[ MARK ALL EXACT DUPES ]" = "[ MARCAR DUPLICADAS EXACTAS ]";
 "Marks every EXACT duplicate except the best of each group" = "Marca todas las duplicadas EXACTAS menos la mejor de cada grupo";
 "Mark to optimize" = "Marcar para optimizar";

@@ -411,10 +411,13 @@ final class PhotosModel: ObservableObject {
 
     // MARK: Borrado (va a "Eliminado recientemente", 30 días recuperable)
 
-    func deleteSelected() {
+    func deleteSelected() { delete(ids: selected) }
+
+    /// Borra un subconjunto concreto (p. ej. las marcadas de un solo grupo).
+    func delete(ids requested: Set<String>) {
         // Red de seguridad: la "mejor" de cada grupo jamás entra en el borrado
         let bests = Set(groups.map(\.bestID))
-        let ids = selected.subtracting(bests)
+        let ids = requested.intersection(selected).subtracting(bests)
         guard !ids.isEmpty else { return }
         let targets = allAssets.filter { ids.contains($0.id) }
         let bytes = targets.map(\.fileSize).reduce(0, +)

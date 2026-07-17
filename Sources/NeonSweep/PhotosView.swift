@@ -8,6 +8,7 @@ struct PhotosView: View {
     @State private var preview: PreviewTarget?
     @State private var rawSort: MediaSort = .size
     @State private var videoSort: MediaSort = .size
+    @State private var dupeFilter: DupeTier?   // nil = todos los niveles
     @State private var rawLimit = 50
     @State private var videoLimit = 50
     private let maxGroupsShown = 60   // tope de render: evita desbordar SwiftUI
@@ -151,15 +152,37 @@ struct PhotosView: View {
 
     // MARK: Duplicados / similares
 
+    private var filteredGroups: [DupeGroup] {
+        dupeFilter.map { f in model.groups.filter { $0.tier == f } } ?? model.groups
+    }
+
+    private func tierCount(_ tier: DupeTier) -> Int {
+        model.groups.filter { $0.tier == tier }.count
+    }
+
+    private func tierChip(_ label: String, _ tier: DupeTier?, count: Int) -> some View {
+        Button { dupeFilter = tier } label: {
+            Text("\(label) (\(count))")
+                .font(Theme.mono(10, dupeFilter == tier ? .bold : .regular))
+                .foregroundStyle(dupeFilter == tier ? Theme.neon : Theme.grayDark)
+                .padding(.vertical, 2).padding(.horizontal, 5)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                    dupeFilter == tier ? Theme.neon : Theme.border, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
     private var dupesSection: some View {
         TerminalPanel(title: String(format: t("DUPLICATES & SIMILAR — %d groups"), model.groups.count)) {
             if model.groups.isEmpty && !model.scanning {
                 Text(t("no groups detected (or not analyzed yet)"))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
             } else {
-                HStack {
-                    Text(t("nothing is pre-checked — you decide"))
-                        .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                HStack(spacing: 6) {
+                    tierChip(t("all"), nil, count: model.groups.count)
+                    tierChip(t("DUPLICATES"), .exact, count: tierCount(.exact))
+                    tierChip(t("NEAR-DUPLICATES"), .near, count: tierCount(.near))
+                    tierChip(t("SIMILAR"), .similar, count: tierCount(.similar))
                     Spacer()
                     Button { model.selectAllExactDupes() } label: {
                         Text(t("[ MARK ALL EXACT DUPES ]"))
@@ -170,38 +193,56 @@ struct PhotosView: View {
                     .buttonStyle(.plain)
                     .help(t("Marks every EXACT duplicate except the best of each group"))
                 }
+                Text(t("nothing is pre-checked — you decide"))
+                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             }
             LazyVStack(alignment: .leading, spacing: 10) {
-                ForEach(model.groups.prefix(maxGroupsShown)) { g in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            tierTag(g.tier)
-                            Text(String(format: t("%d photos // %@"), g.members.count, formatBytes(g.totalSize)))
-                                .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-                            Spacer()
-                            Button { model.selectAllButBest(g) } label: {
-                                Text(t("[ ALL BUT BEST ]"))
-                                    .font(Theme.mono(9, .bold)).foregroundStyle(Theme.neonDim)
-                            }
-                            .buttonStyle(.plain)
-                            .help(t("Marks the whole group except the best — you can unmark any to keep more"))
-                        }
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 6) {
-                                ForEach(g.members) { m in
-                                    thumbCell(m, isBest: m.id == g.bestID)
-                                }
-                            }
-                        }
-                        .frame(height: 118)
+                ForEach(filteredGroups.prefix(maxGroupsShown)) { g in
+                    groupRow(g)
+                }
+            }
+            if filteredGroups.count > maxGroupsShown {
+                Text(String(format: t("… and %d more groups — clean these first and re-analyze"),
+                            filteredGroups.count - maxGroupsShown))
+                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            }
+        }
+    }
+
+    private func groupRow(_ g: DupeGroup) -> some View {
+        let markedInGroup = g.members.filter { model.selected.contains($0.id) && $0.id != g.bestID }
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                tierTag(g.tier)
+                Text(String(format: t("%d photos // %@"), g.members.count, formatBytes(g.totalSize)))
+                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                Spacer()
+                Button { model.selectAllButBest(g) } label: {
+                    Text(t("[ ALL BUT BEST ]"))
+                        .font(Theme.mono(9, .bold)).foregroundStyle(Theme.neonDim)
+                }
+                .buttonStyle(.plain)
+                .help(t("Marks the whole group except the best — you can unmark any to keep more"))
+                if !markedInGroup.isEmpty {
+                    Button { model.delete(ids: Set(markedInGroup.map(\.id))) } label: {
+                        Text(String(format: t("[ DELETE (%d) ]"), markedInGroup.count))
+                            .font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
+                            .padding(.vertical, 2).padding(.horizontal, 5)
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.amber, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.optimizing)
+                    .help(t("Deletes only this group's marked photos (system asks to confirm)"))
+                }
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 6) {
+                    ForEach(g.members) { m in
+                        thumbCell(m, isBest: m.id == g.bestID)
                     }
                 }
             }
-            if model.groups.count > maxGroupsShown {
-                Text(String(format: t("… and %d more groups — clean these first and re-analyze"),
-                            model.groups.count - maxGroupsShown))
-                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-            }
+            .frame(height: 118)
         }
     }
 
