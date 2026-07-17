@@ -240,7 +240,7 @@
 "[ DELETE WHOLE SET ]" = "[ BORRAR SET ENTERO ]";
 "Deletes ALL photos in this set, INCLUDING the best (system asks to confirm)" = "Borra TODAS las fotos de este set, INCLUIDA la mejor (el sistema pide confirmación)";
 "Sound on/off" = "Sonido sí/no";
-"Mark to optimize" = "Marcar para optimizar";
+"Mark to optimize (Shift-click = range from last click)" = "Marcar para optimizar (Shift+clic = rango desde el último clic)";
 "[✗ delete]" = "[✗ borrar]";
 "[ delete ]" = "[ borrar ]";
 "Mark this duplicate video for deletion" = "Marcar este vídeo duplicado para borrarlo";

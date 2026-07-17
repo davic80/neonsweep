@@ -12,6 +12,28 @@ struct PhotosView: View {
     @State private var dupeFilter: DupeTier?   // nil = todos los niveles
     @State private var rawLimit = 50
     @State private var videoLimit = 50
+    @State private var lastAnchor: [String: String] = [:]   // lista → último id clicado
+
+    /// Clic normal alterna; Shift+clic aplica al rango desde el último clic,
+    /// en el orden mostrado en pantalla.
+    private func toggleRow(_ m: PhotoAsset, in list: [PhotoAsset], key: String) {
+        let shift = NSEvent.modifierFlags.contains(.shift)
+        if shift,
+           let anchorID = lastAnchor[key],
+           let a = list.firstIndex(where: { $0.id == anchorID }),
+           let b = list.firstIndex(where: { $0.id == m.id }) {
+            let marking = !model.optSelected.contains(m.id)
+            for item in list[min(a, b)...max(a, b)] {
+                if marking { model.optSelected.insert(item.id) }
+                else { model.optSelected.remove(item.id) }
+            }
+        } else if model.optSelected.contains(m.id) {
+            model.optSelected.remove(m.id)
+        } else {
+            model.optSelected.insert(m.id)
+        }
+        lastAnchor[key] = m.id
+    }
     private let maxGroupsShown = 60   // tope de render: evita desbordar SwiftUI
 
     private func sorted(_ list: [PhotoAsset], by key: MediaSort) -> [PhotoAsset] {
@@ -374,9 +396,10 @@ struct PhotosView: View {
                 } else {
                     sortPicker($videoSort)
                 }
+                let shownVideos = Array(sorted(optimizableVideos, by: videoSort).prefix(videoLimit))
                 LazyVStack(alignment: .leading, spacing: 3) {
-                    ForEach(sorted(optimizableVideos, by: videoSort).prefix(videoLimit)) { m in
-                        assetRow(m)
+                    ForEach(shownVideos) { m in
+                        assetRow(m, in: shownVideos, key: "video")
                     }
                 }
                 if !optimizableVideos.isEmpty {
@@ -433,7 +456,7 @@ struct PhotosView: View {
                 }
                 LazyVStack(alignment: .leading, spacing: 3) {
                     ForEach(shownRaws) { m in
-                        assetRow(m)
+                        assetRow(m, in: shownRaws, key: "raw")
                     }
                 }
                 moreBar(total: model.rawPhotos.count, limit: $rawLimit)
@@ -443,19 +466,20 @@ struct PhotosView: View {
 
     // MARK: Componentes comunes
 
-    private func assetRow(_ m: PhotoAsset, optimizable: Bool = true) -> some View {
+    private func assetRow(_ m: PhotoAsset, in list: [PhotoAsset] = [], key: String = "",
+                          optimizable: Bool = true) -> some View {
         let isOpt = model.optSelected.contains(m.id)
         return HStack(spacing: 8) {
             if optimizable {
                 Button {
-                    if isOpt { model.optSelected.remove(m.id) } else { model.optSelected.insert(m.id) }
+                    toggleRow(m, in: list, key: key)
                 } label: {
                     Text(isOpt ? "[x]" : "[ ]")
                         .font(Theme.body)
                         .foregroundStyle(isOpt ? Theme.neon : Theme.grayDark)
                 }
                 .buttonStyle(NeonClick())
-                .help(t("Mark to optimize"))
+                .help(t("Mark to optimize (Shift-click = range from last click)"))
             } else {
                 Text("[·]").font(Theme.body).foregroundStyle(Theme.grayDark)
                     .help(t("Already HEVC — recompressing won't shrink it"))
