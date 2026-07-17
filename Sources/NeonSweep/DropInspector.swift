@@ -122,7 +122,7 @@ struct DropInspectorPanel: View {
     var body: some View {
         if model.visible {
             VStack(alignment: .leading, spacing: 0) {
-                TerminalPanel(title: t("INSPECTOR")) {
+                TerminalPanel(title: t("INSPECTOR"), collapsible: false) {
                     if model.working {
                         HStack(spacing: 8) {
                             Text(t("inspecting…")).font(Theme.body).foregroundStyle(Theme.gray)

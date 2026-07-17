@@ -72,7 +72,7 @@ struct VideoOptimizeSheet: View {
         let plan = PhotosModel.TranscodePlan.make(for: pa, profile: profile)
         let saving = max(0, pa.fileSize - plan.estBytes)
         let pct = pa.fileSize > 0 ? Int(Double(saving) / Double(pa.fileSize) * 100) : 0
-        return TerminalPanel(title: title) {
+        return TerminalPanel(title: title, collapsible: false) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(detail).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)

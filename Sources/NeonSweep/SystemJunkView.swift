@@ -47,7 +47,7 @@ struct JunkView: View {
     }
 
     private func categoryPanel(_ cat: JunkCategory) -> some View {
-        TerminalPanel(title: t(cat.name)) {
+        TerminalPanel(title: t(cat.name), id: cat.name) {
             HStack {
                 Text(t(cat.note))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)

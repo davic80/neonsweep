@@ -49,13 +49,37 @@ final class PermissionsModel: ObservableObject {
 
 struct PermissionsPanel: View {
     @ObservedObject var model = PermissionsModel.shared
+    @State private var expanded = false   // con todo concedido, arranca plegado
 
     private var allGood: Bool {
         model.fullDisk && model.photos == .authorized && model.automation == true
     }
 
     var body: some View {
-        TerminalPanel(title: t("PERMISSIONS")) {
+        if allGood && !expanded {
+            Button { expanded = true } label: {
+                HStack(spacing: 6) {
+                    Text("[+]").font(Theme.mono(12, .bold)).foregroundStyle(Theme.neonDim)
+                    Text("[ " + t("PERMISSIONS") + " ✓ ]")
+                        .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neonDim)
+                    Text(t("all granted")).font(Theme.mono(10)).foregroundStyle(Theme.gray)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .padding(.vertical, 10).padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.panel)
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.border, lineWidth: 1))
+            .onAppear { model.refresh() }
+        } else {
+            fullPanel
+        }
+    }
+
+    private var fullPanel: some View {
+        TerminalPanel(title: t("PERMISSIONS"), id: "permissions") {
             Text(t("// grant everything once here and the modules won't nag you later"))
                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             row(t("Full Disk Access"), t("finds ~98% of app leftovers and measures the Trash"),

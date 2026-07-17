@@ -76,7 +76,7 @@ struct DashboardView: View {
     // MARK: Purgable
 
     private var purgeablePanel: some View {
-        TerminalPanel(title: String(format: t("PURGEABLE — %@"), formatBytes(model.disk.purgeable))) {
+        TerminalPanel(title: String(format: t("PURGEABLE — %@"), formatBytes(model.disk.purgeable)), id: "purgeable") {
             Text(t("// space macOS frees on its own when needed: Time Machine local snapshots, evictable iCloud files and system caches. Only the snapshots can be purged on demand:"))
                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             HStack {
@@ -150,7 +150,7 @@ struct DashboardView: View {
     // MARK: Recuperable
 
     private var recoverablePanel: some View {
-        TerminalPanel(title: t("RECLAIMABLE")) {
+        TerminalPanel(title: t("RECLAIMABLE"), id: "reclaimable") {
             Text(formatBytes(model.recoverable))
                 .font(Theme.big)
                 .foregroundStyle(Theme.neon)
@@ -164,7 +164,7 @@ struct DashboardView: View {
     // MARK: Tabla de basura
 
     private var junkPanel: some View {
-        TerminalPanel(title: t("DETECTED TARGETS")) {
+        TerminalPanel(title: t("DETECTED TARGETS"), id: "targets") {
             ForEach(model.items.filter { $0.exists || model.scanning }) { item in
                 HStack(spacing: 0) {
                     Text(t(item.name))

@@ -23,22 +23,55 @@ enum Theme {
     static let big    = mono(34, .bold)
 }
 
-/// Panel con borde estilo terminal y título tipo [ SECCIÓN ]
+/// Panel con borde estilo terminal y título tipo [ SECCIÓN ].
+/// Colapsable con clic en el título; el estado se recuerda entre sesiones
+/// (clave estable vía `id`, o derivada del título si no se pasa).
 struct TerminalPanel<Content: View>: View {
     let title: String
+    var id: String?
+    var collapsible = true
     @ViewBuilder var content: Content
+    @State private var collapsed = false
+
+    private var key: String { "panel.collapsed." + (id ?? title.filter(\.isLetter)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("[ \(title) ]")
-                .font(Theme.mono(12, .bold))
-                .foregroundStyle(Theme.neonDim)
-            content
+            if collapsible {
+                Button {
+                    collapsed.toggle()
+                    UserDefaults.standard.set(collapsed, forKey: key)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(collapsed ? "[+]" : "[-]")
+                            .font(Theme.mono(12, .bold))
+                            .foregroundStyle(Theme.neonDim)
+                        Text("[ \(title) ]")
+                            .font(Theme.mono(12, .bold))
+                            .foregroundStyle(Theme.neonDim)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .accessibilityLabel(title)
+                .accessibilityValue(collapsed ? "colapsado" : "expandido")
+            } else {
+                Text("[ \(title) ]")
+                    .font(Theme.mono(12, .bold))
+                    .foregroundStyle(Theme.neonDim)
+            }
+            if !collapsed || !collapsible {
+                content
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.panel)
         .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.border, lineWidth: 1))
+        .onAppear {
+            if collapsible { collapsed = UserDefaults.standard.bool(forKey: key) }
+        }
     }
 }
 

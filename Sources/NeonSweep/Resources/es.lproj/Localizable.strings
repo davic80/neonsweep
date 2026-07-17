@@ -214,6 +214,11 @@
 "[date]" = "[fecha]";
 "showing %d of %d" = "mostrando %d de %d";
 "[ ALL ]" = "[ TODOS ]";
+"[ less ]" = "[ menos ]";
+"ALL" = "TODO";
+"VIDEOS" = "VÍDEOS";
+"DUPES" = "DUPLICADOS";
+"all granted" = "todo concedido";
 "[ MARK SHOWN ]" = "[ MARCAR VISIBLES ]";
 "Marks the visible rows for conversion — the limit below is your batch size" = "Marca las filas visibles para convertir — el límite de abajo es tu tamaño de lote";
 "convert to HEIC (~90% quality, huge savings); the original stays 30 days in Recently Deleted" = "convierte a HEIC (~90% calidad, ahorro enorme); el original queda 30 días en Eliminado recientemente";

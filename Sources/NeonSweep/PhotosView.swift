@@ -2,6 +2,7 @@ import SwiftUI
 import Photos
 
 enum MediaSort { case size, date, name }
+enum PhotoTab: String { case all, raw, videos, dupes }
 
 struct PhotosView: View {
     @ObservedObject var model: PhotosModel
@@ -10,8 +11,11 @@ struct PhotosView: View {
     @State private var rawSort: MediaSort = .size
     @State private var videoSort: MediaSort = .size
     @State private var dupeFilter: DupeTier?   // nil = todos los niveles
-    @State private var rawLimit = 50
-    @State private var videoLimit = 50
+    @AppStorage("photos.tab") private var tabRaw = PhotoTab.all.rawValue
+    @AppStorage("photos.rawLimit") private var rawLimit = 50
+    @AppStorage("photos.videoLimit") private var videoLimit = 50
+
+    private var tab: PhotoTab { PhotoTab(rawValue: tabRaw) ?? .all }
     @State private var lastAnchor: [String: String] = [:]   // lista → último id clicado
 
     /// Clic normal alterna; Shift+clic aplica al rango desde el último clic,
@@ -66,7 +70,7 @@ struct PhotosView: View {
         .buttonStyle(NeonClick())
     }
 
-    private func moreBar(total: Int, limit: Binding<Int>) -> some View {
+    private func moreBar(total: Int, limit: Binding<Int>, base: Int = 50) -> some View {
         HStack(spacing: 10) {
             Text(String(format: t("showing %d of %d"), min(limit.wrappedValue, total), total))
                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
@@ -78,8 +82,52 @@ struct PhotosView: View {
                     Text(t("[ ALL ]")).font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
                 }.buttonStyle(NeonClick())
             }
+            if limit.wrappedValue > base {
+                Button { limit.wrappedValue = base } label: {
+                    Text(t("[ less ]")).font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
+                }.buttonStyle(NeonClick())
+            }
             Spacer()
         }
+    }
+
+    // MARK: Pestañas del módulo
+
+    private var tabsRow: some View {
+        HStack(spacing: 6) {
+            tabChip(t("ALL"), .all)
+            tabChip("RAW (\(model.rawPhotos.count))", .raw)
+            tabChip(t("VIDEOS") + " (\(optimizableVideos.count))", .videos)
+            tabChip(t("DUPES") + " (\(model.groups.count))", .dupes)
+            Spacer()
+        }
+    }
+
+    private func tabChip(_ label: String, _ value: PhotoTab) -> some View {
+        Button { tabRaw = value.rawValue } label: {
+            Text(label)
+                .font(Theme.mono(11, tab == value ? .bold : .regular))
+                .foregroundStyle(tab == value ? Theme.neon : Theme.grayDark)
+                .padding(.vertical, 4).padding(.horizontal, 8)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                    tab == value ? Theme.neon : Theme.border, lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NeonClick())
+    }
+
+    private var rawTitle: String {
+        var s = String(format: t("RAW PHOTOS — %d"), model.rawPhotos.count)
+        let n = model.selectedRaws.count
+        if n > 0 { s += " · \(n) ✓" }
+        return s
+    }
+
+    private var videosTitle: String {
+        var s = String(format: t("BIG VIDEOS (>100 MB) — %d optimizable"), optimizableVideos.count)
+        let n = model.selectedVideos.count
+        if n > 0 { s += " · \(n) ✓" }
+        return s
     }
 
     var body: some View {
@@ -127,14 +175,15 @@ struct PhotosView: View {
                     case .notDetermined:
                         askAccess
                     case .denied, .restricted:
-                        TerminalPanel(title: t("NO ACCESS")) {
+                        TerminalPanel(title: t("NO ACCESS"), collapsible: false) {
                             Text(t("Grant Photos access in System Settings → Privacy → Photos"))
                                 .font(Theme.body).foregroundStyle(Theme.amber)
                         }
                     default:
-                        rawSection
-                        videosSection
-                        dupesSection
+                        tabsRow
+                        if tab == .all || tab == .raw { rawSection }
+                        if tab == .all || tab == .videos { videosSection }
+                        if tab == .all || tab == .dupes { dupesSection }
                     }
                 }
                 .padding(20)
@@ -178,7 +227,7 @@ struct PhotosView: View {
     }
 
     private var askAccess: some View {
-        TerminalPanel(title: t("PHOTOS ACCESS")) {
+        TerminalPanel(title: t("PHOTOS ACCESS"), collapsible: false) {
             Text(t("NeonSweep needs to read your library to find duplicates and huge originals. Nothing is deleted without your confirmation; deletions go to \"Recently Deleted\" (recoverable for 30 days)."))
                 .font(Theme.body).foregroundStyle(Theme.gray)
             Button { model.requestAndScan() } label: {
@@ -214,7 +263,7 @@ struct PhotosView: View {
     }
 
     private var dupesSection: some View {
-        TerminalPanel(title: String(format: t("DUPLICATES & SIMILAR — %d groups"), model.groups.count)) {
+        TerminalPanel(title: String(format: t("DUPLICATES & SIMILAR — %d groups"), model.groups.count), id: "photos.dupes") {
             if model.groups.isEmpty && !model.scanning {
                 Text(t("no groups detected (or not analyzed yet)"))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
@@ -393,8 +442,7 @@ struct PhotosView: View {
     }
 
     private var videosSection: some View {
-        TerminalPanel(title: String(format: t("BIG VIDEOS (>100 MB) — %d optimizable"),
-                                    optimizableVideos.count)) {
+        TerminalPanel(title: videosTitle, id: "photos.videos") {
             if model.bigVideos.isEmpty {
                 Text(t("none")).font(Theme.small).foregroundStyle(Theme.grayDark)
             } else {
@@ -448,7 +496,7 @@ struct PhotosView: View {
     }
 
     private var rawSection: some View {
-        TerminalPanel(title: String(format: t("RAW PHOTOS — %d"), model.rawPhotos.count)) {
+        TerminalPanel(title: rawTitle, id: "photos.raw") {
             if model.rawPhotos.isEmpty {
                 Text(t("none")).font(Theme.small).foregroundStyle(Theme.grayDark)
             } else {
