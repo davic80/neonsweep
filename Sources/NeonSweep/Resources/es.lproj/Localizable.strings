@@ -159,6 +159,13 @@
 
 /* Fotos */
 "[ ANALYZE LIBRARY ]" = "[ ANALIZAR LIBRERÍA ]";
+"[ UPDATE ANALYSIS ]" = "[ ACTUALIZAR ANÁLISIS ]";
+"[ RE-ANALYZE ALL ]" = "[ RE-ANALIZAR TODO ]";
+"Full analysis from scratch (slow with big libraries)" = "Análisis completo desde cero (lento con librerías grandes)";
+"Only processes what changed since the last analysis" = "Solo procesa lo que cambió desde el último análisis";
+"checking library changes…" = "comprobando cambios en la librería…";
+"analyzing %d new items…" = "analizando %d elementos nuevos…";
+"OK: incremental — %d new, %d removed" = "OK: incremental — %d nuevos, %d quitados";
 "[ ANALYZING… ]" = "[ ANALIZANDO… ]";
 "NO ACCESS" = "SIN ACCESO";
 "Grant Photos access in System Settings → Privacy → Photos" = "Concede acceso a Fotos en Ajustes del Sistema → Privacidad → Fotos";

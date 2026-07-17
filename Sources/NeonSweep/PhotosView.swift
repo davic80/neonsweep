@@ -61,13 +61,25 @@ struct PhotosView: View {
                 BlinkingCursor()
             }
             Spacer()
+            if model.hasResults && !model.scanning {
+                Button { model.requestAndScan(fullRescan: true) } label: {
+                    Text(t("[ RE-ANALYZE ALL ]"))
+                        .font(Theme.mono(11))
+                        .foregroundStyle(model.optimizing ? Theme.grayDark : Theme.neonDim)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.optimizing)
+                .help(t("Full analysis from scratch (slow with big libraries)"))
+            }
             Button { model.requestAndScan() } label: {
-                Text(model.scanning ? t("[ ANALYZING… ]") : t("[ ANALYZE LIBRARY ]"))
+                Text(model.scanning ? t("[ ANALYZING… ]")
+                     : (model.hasResults ? t("[ UPDATE ANALYSIS ]") : t("[ ANALYZE LIBRARY ]")))
                     .font(Theme.mono(12, .bold))
                     .foregroundStyle(model.scanning || model.optimizing ? Theme.grayDark : Theme.neon)
             }
             .buttonStyle(.plain)
             .disabled(model.scanning || model.optimizing)
+            .help(model.hasResults ? t("Only processes what changed since the last analysis") : "")
         }
     }
 

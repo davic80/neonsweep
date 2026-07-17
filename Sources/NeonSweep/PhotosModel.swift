@@ -127,6 +127,22 @@ final class PhotosModel: ObservableObject {
         if let data = try? JSONEncoder().encode(cache) {
             try? data.write(to: Self.cacheURL)
         }
+        // Token del registro de cambios: ancla del próximo análisis incremental
+        let token = PHPhotoLibrary.shared().currentChangeToken
+        if let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token,
+                                                             requiringSecureCoding: true) {
+            try? tokenData.write(to: Self.tokenURL)
+        }
+    }
+
+    private nonisolated static var tokenURL: URL {
+        cacheURL.deletingLastPathComponent().appendingPathComponent("changetoken.bin")
+    }
+
+    nonisolated static func loadChangeToken() -> PHPersistentChangeToken? {
+        guard let data = try? Data(contentsOf: tokenURL) else { return nil }
+        return try? NSKeyedUnarchiver.unarchivedObject(ofClass: PHPersistentChangeToken.self,
+                                                       from: data)
     }
 
     private func loadCache() {
@@ -170,56 +186,159 @@ final class PhotosModel: ObservableObject {
         }
     }
 
-    func requestAndScan() {
+    var hasResults: Bool { !(groups.isEmpty && bigVideos.isEmpty && rawPhotos.isEmpty) }
+
+    /// `fullRescan: false` → incremental si hay análisis previo y token válido.
+    func requestAndScan(fullRescan: Bool = false) {
         Task {
             status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             guard status == .authorized || status == .limited else { return }
-            await scan()
+            if !fullRescan, hasResults, let token = Self.loadChangeToken() {
+                await incrementalScan(since: token)
+            } else {
+                await fullScan()
+            }
         }
     }
 
-    private func scan() async {
+    /// Solo procesa lo insertado/borrado desde el último análisis (registro
+    /// persistente de cambios de Fotos). Lo ya analizado permanece intacto.
+    private func incrementalScan(since token: PHPersistentChangeToken) async {
         guard !scanning else { return }
         scanning = true
-        groups = []; bigVideos = []; rawPhotos = []; selected = []
+        progress = t("checking library changes…")
+        fraction = nil
+        do {
+            let changes = try PHPhotoLibrary.shared().fetchPersistentChanges(since: token)
+            var inserted: Set<String> = [], deleted: Set<String> = []
+            for change in changes {
+                guard let d = try? change.changeDetails(for: .asset) else { continue }
+                inserted.formUnion(d.insertedLocalIdentifiers)
+                inserted.formUnion(d.updatedLocalIdentifiers)
+                deleted.formUnion(d.deletedLocalIdentifiers)
+            }
+            inserted.subtract(deleted)
+            removeFromLists(deleted)
+            codecByID = codecByID.filter { !deleted.contains($0.key) }
+
+            var newCount = 0
+            if !inserted.isEmpty {
+                let opts = PHFetchOptions()
+                opts.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+                let fetch = PHAsset.fetchAssets(withLocalIdentifiers: Array(inserted), options: opts)
+                newCount = fetch.count
+                progress = String(format: t("analyzing %d new items…"), newCount)
+                let collected = await Self.collect(fetch) { done, total in
+                    Task { @MainActor in self.fraction = Double(done) / Double(max(1, total)) * 0.5 }
+                }
+                let knownV = Set(bigVideos.map(\.id))
+                bigVideos = (bigVideos + collected.videos.filter { !knownV.contains($0.id) })
+                    .sorted { $0.fileSize > $1.fileSize }
+                let knownR = Set(rawPhotos.map(\.id))
+                rawPhotos = (rawPhotos + collected.raws.filter { !knownR.contains($0.id) })
+                    .sorted { $0.fileSize > $1.fileSize }
+                dupeVideoIDs = Self.findDupeVideos(bigVideos)
+                loadVideoCodecs()
+                // Agrupar solo lo nuevo entre sí (lotes de importación)
+                let newGroups = await groupImages(collected.images, baseFraction: 0.5, span: 0.5)
+                groups = (groups + newGroups).sorted { $0.totalSize > $1.totalSize }
+            }
+            pruneSelections()
+            progress = ""
+            fraction = nil
+            scanning = false
+            cacheDate = nil
+            saveCache()
+            lastResult = String(format: t("OK: incremental — %d new, %d removed"), newCount, deleted.count)
+            AppLog.log("SCAN incremental: +\(newCount), -\(deleted.count)")
+        } catch {
+            AppLog.log("SCAN incremental: token inválido (\(error.localizedDescription)) → análisis completo")
+            scanning = false
+            await fullScan()
+        }
+    }
+
+    private func fullScan() async {
+        guard !scanning else { return }
+        scanning = true
+        let firstRun = !hasResults   // con resultados previos, no vaciar la vista
 
         let opts = PHFetchOptions()
         opts.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
         let fetch = PHAsset.fetchAssets(with: opts)
 
         progress = String(format: t("reading library (%d items)…"), fetch.count)
-        let fetchCount = fetch.count
-        let collected: ([PhotoAsset], [PhotoAsset], [PhotoAsset]) = await Task.detached(priority: .userInitiated) {
+        let collected = await Self.collect(fetch) { done, total in
+            Task { @MainActor in self.fraction = Double(done) / Double(max(1, total)) * 0.5 }
+        }
+        let images = collected.images
+        let newVideos = collected.videos.sorted { $0.fileSize > $1.fileSize }
+        let newRaws = collected.raws.sorted { $0.fileSize > $1.fileSize }
+        if firstRun {
+            // primera pasada: enseñar RAWs y vídeos en cuanto están
+            bigVideos = newVideos
+            rawPhotos = newRaws
+            dupeVideoIDs = Self.findDupeVideos(newVideos)
+            loadVideoCodecs()
+        }
+
+        let newGroups = await groupImages(images, baseFraction: 0.5, span: 0.5)
+
+        groups = newGroups.sorted { $0.totalSize > $1.totalSize }
+        bigVideos = newVideos
+        rawPhotos = newRaws
+        dupeVideoIDs = Self.findDupeVideos(newVideos)
+        loadVideoCodecs()
+        pruneSelections()
+        progress = ""
+        fraction = nil
+        scanning = false
+        cacheDate = nil   // resultados frescos
+        saveCache()
+    }
+
+    /// Lee metadatos de un fetch (tamaños, RAW, nombre) fuera del hilo principal.
+    nonisolated static func collect(
+        _ fetch: PHFetchResult<PHAsset>,
+        onProgress: @escaping @Sendable (Int, Int) -> Void
+    ) async -> (images: [PhotoAsset], videos: [PhotoAsset], raws: [PhotoAsset]) {
+        await Task.detached(priority: .userInitiated) {
             var imgs: [PhotoAsset] = [], vids: [PhotoAsset] = [], raws: [PhotoAsset] = []
             var done = 0
+            let total = fetch.count
             fetch.enumerateObjects { asset, _, _ in
-                done += 1
-                if done % 100 == 0 {
-                    let f = Double(done) / Double(max(1, fetchCount)) * 0.5
-                    Task { @MainActor in self.fraction = f }
-                }
-                let meta = Self.resourceMeta(of: asset)
-                let pa = PhotoAsset(id: asset.localIdentifier, asset: asset,
-                                    fileSize: meta.size, isRaw: meta.isRaw,
-                                    filename: meta.filename)
-                switch asset.mediaType {
-                case .image:
-                    if meta.isRaw { raws.append(pa) }
-                    imgs.append(pa)
-                case .video:
-                    if pa.fileSize >= Self.bigVideoMinBytes { vids.append(pa) }
-                default: break
+                autoreleasepool {
+                    done += 1
+                    if done % 100 == 0 { onProgress(done, total) }
+                    let meta = Self.resourceMeta(of: asset)
+                    let pa = PhotoAsset(id: asset.localIdentifier, asset: asset,
+                                        fileSize: meta.size, isRaw: meta.isRaw,
+                                        filename: meta.filename)
+                    switch asset.mediaType {
+                    case .image:
+                        if meta.isRaw { raws.append(pa) }
+                        imgs.append(pa)
+                    case .video:
+                        if pa.fileSize >= Self.bigVideoMinBytes { vids.append(pa) }
+                    default: break
+                    }
                 }
             }
             return (imgs, vids, raws)
         }.value
-        let images = collected.0
-        bigVideos = collected.1.sorted { $0.fileSize > $1.fileSize }
-        rawPhotos = collected.2.sorted { $0.fileSize > $1.fileSize }
-        dupeVideoIDs = Self.findDupeVideos(bigVideos)
-        loadVideoCodecs()
+    }
 
-        // Huellas visuales + agrupación por ventana temporal
+    /// Las marcas solo pueden apuntar a assets que sigan en las listas.
+    private func pruneSelections() {
+        let valid = Set(allAssets.map(\.id))
+        selected.formIntersection(valid)
+        optSelected.formIntersection(valid)
+    }
+
+    /// Agrupación por huella visual con ventana temporal. baseFraction/span
+    /// mapean el avance de esta fase sobre la barra de progreso.
+    private func groupImages(_ images: [PhotoAsset],
+                             baseFraction: Double, span: Double) async -> [DupeGroup] {
         let total = images.count
         var result: [DupeGroup] = []
         var window: [(PhotoAsset, VNFeaturePrintObservation)] = []
@@ -244,7 +363,7 @@ final class PhotosModel: ObservableObject {
         for (i, pa) in images.enumerated() {
             if i % 25 == 0 {
                 progress = String(format: t("analyzing %d/%d…"), i, total)
-                fraction = 0.5 + Double(i) / Double(max(1, total)) * 0.5
+                fraction = baseFraction + Double(i) / Double(max(1, total)) * span
                 await Task.yield()
             }
             guard let print = await Task.detached(priority: .userInitiated, operation: {
@@ -277,15 +396,7 @@ final class PhotosModel: ObservableObject {
             if window.count > Self.windowSize * 2 { window.removeFirst() }
         }
         closeGroup()
-
-        // Los grupos más gordos primero (la vista además los renderiza con tope)
-        groups = result.sorted { $0.totalSize > $1.totalSize }
-        // Nada premarcado: marcar es siempre decisión del usuario
-        progress = ""
-        fraction = nil
-        scanning = false
-        cacheDate = nil   // resultados frescos
-        saveCache()
+        return result
     }
 
     /// Marca todo el grupo menos la mejor (la mejor nunca es borrable).
