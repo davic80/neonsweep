@@ -80,6 +80,13 @@ final class PhotosModel: ObservableObject {
     private static let windowSize = 8           // comparar con los N vecinos temporales
     private nonisolated static let bigVideoMinBytes: Int64 = 100_000_000
 
+    /// Trabajadores RAW en paralelo: escala con los núcleos (en un M5 de 10 → 6).
+    nonisolated static let rawWorkers = max(3, min(6, ProcessInfo.processInfo.activeProcessorCount - 4))
+
+    /// CIContext compartido: crearlo es caro y es seguro entre hilos;
+    /// reutilizarlo acelera los lotes y reduce el pico de memoria.
+    nonisolated static let ciContext = CIContext()
+
     var selectedSize: Int64 {
         allAssets.filter { selected.contains($0.id) }.map(\.fileSize).reduce(0, +)
     }
@@ -581,7 +588,7 @@ final class PhotosModel: ObservableObject {
                         guard !stopRequested, let pa = it.next() else { return }
                         group.addTask { (pa, Self.rawToHEIC(pa.asset)) }
                     }
-                    for _ in 0..<3 { addNext() }
+                    for _ in 0..<Self.rawWorkers { addNext() }
                     for await (pa, outURL) in group {
                         workingAsset = pa.asset
                         handleResult(pa, outURL)
@@ -886,8 +893,7 @@ final class PhotosModel: ObservableObject {
 
         // Render a CGImage y escritura HEIC vía ImageIO (el escritor HEIF de
         // CIContext falla con RAWs grandes: "CINonLocalizedDescriptionKey error 1")
-        let ctx = CIContext()
-        guard let cg = ctx.createCGImage(image, from: image.extent, format: .RGBA8,
+        guard let cg = ciContext.createCGImage(image, from: image.extent, format: .RGBA8,
                                          colorSpace: CGColorSpace(name: CGColorSpace.displayP3)) else {
             AppLog.log("RAW \(name): no se pudo renderizar la imagen")
             return nil
