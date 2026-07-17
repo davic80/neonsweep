@@ -184,7 +184,9 @@
 "… and %d more groups — clean these first and re-analyze" = "… y %d grupos más — limpia estos primero y re-analiza";
 "BEST" = "MEJOR";
 "[x] delete" = "[x] borrar";
-"BIG VIDEOS (>100 MB) — %d" = "VÍDEOS GRANDES (>100 MB) — %d";
+"BIG VIDEOS (>100 MB) — %d optimizable" = "VÍDEOS GRANDES (>100 MB) — %d optimizables";
+"everything already in HEVC ✓" = "todo ya en HEVC ✓";
+"%d already HEVC — nothing to gain" = "%d ya en HEVC — nada que ganar";
 "none" = "ninguno";
 "recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted" = "recomprime a HEVC manteniendo resolución; el original queda 30 días en Eliminado recientemente";
 "[ RECOMPRESS SELECTED → HEVC ]" = "[ RECOMPRIMIR MARCADOS → HEVC ]";

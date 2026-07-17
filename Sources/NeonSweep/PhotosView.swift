@@ -182,8 +182,18 @@ struct PhotosView: View {
 
     // MARK: Vídeos grandes → HEVC
 
+    @State private var showHEVC = false
+
+    private var optimizableVideos: [PhotoAsset] {
+        model.bigVideos.filter { model.codecByID[$0.id] != "HEVC ✓" }
+    }
+    private var hevcVideos: [PhotoAsset] {
+        model.bigVideos.filter { model.codecByID[$0.id] == "HEVC ✓" }
+    }
+
     private var videosSection: some View {
-        TerminalPanel(title: String(format: t("BIG VIDEOS (>100 MB) — %d"), model.bigVideos.count)) {
+        TerminalPanel(title: String(format: t("BIG VIDEOS (>100 MB) — %d optimizable"),
+                                    optimizableVideos.count)) {
             if model.bigVideos.isEmpty {
                 Text(t("none")).font(Theme.small).foregroundStyle(Theme.grayDark)
             } else {
@@ -196,9 +206,28 @@ struct PhotosView: View {
                         count: model.selectedVideos.count
                     ) { model.optimizeSelectedVideos() }
                 }
+                if optimizableVideos.isEmpty {
+                    Text(t("everything already in HEVC ✓"))
+                        .font(Theme.body).foregroundStyle(Theme.neonDim)
+                }
                 LazyVStack(alignment: .leading, spacing: 3) {
-                    ForEach(model.bigVideos.prefix(30)) { m in
+                    ForEach(optimizableVideos.prefix(30)) { m in
                         assetRow(m)
+                    }
+                }
+                if !hevcVideos.isEmpty {
+                    Button { showHEVC.toggle() } label: {
+                        Text((showHEVC ? "[-] " : "[+] ") +
+                             String(format: t("%d already HEVC — nothing to gain"), hevcVideos.count))
+                            .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    }
+                    .buttonStyle(.plain)
+                    if showHEVC {
+                        LazyVStack(alignment: .leading, spacing: 3) {
+                            ForEach(hevcVideos.prefix(30)) { m in
+                                assetRow(m, optimizable: false)
+                            }
+                        }
                     }
                 }
             }
@@ -232,18 +261,23 @@ struct PhotosView: View {
 
     // MARK: Componentes comunes
 
-    private func assetRow(_ m: PhotoAsset) -> some View {
+    private func assetRow(_ m: PhotoAsset, optimizable: Bool = true) -> some View {
         let isOpt = model.optSelected.contains(m.id)
         return HStack(spacing: 8) {
-            Button {
-                if isOpt { model.optSelected.remove(m.id) } else { model.optSelected.insert(m.id) }
-            } label: {
-                Text(isOpt ? "[x]" : "[ ]")
-                    .font(Theme.body)
-                    .foregroundStyle(isOpt ? Theme.neon : Theme.grayDark)
+            if optimizable {
+                Button {
+                    if isOpt { model.optSelected.remove(m.id) } else { model.optSelected.insert(m.id) }
+                } label: {
+                    Text(isOpt ? "[x]" : "[ ]")
+                        .font(Theme.body)
+                        .foregroundStyle(isOpt ? Theme.neon : Theme.grayDark)
+                }
+                .buttonStyle(.plain)
+                .help(t("Mark to optimize"))
+            } else {
+                Text("[·]").font(Theme.body).foregroundStyle(Theme.grayDark)
+                    .help(t("Already HEVC — recompressing won't shrink it"))
             }
-            .buttonStyle(.plain)
-            .help(t("Mark to optimize"))
             AssetThumb(asset: m.asset).frame(width: 44, height: 28).clipped()
                 .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
                 .help(t("Click to preview"))
@@ -256,7 +290,11 @@ struct PhotosView: View {
             if m.asset.mediaType == .video {
                 Text(Self.duration(m.asset.duration))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
-                VideoCodecTag(asset: m.asset)
+                let codec = model.codecByID[m.id]
+                Text(codec ?? "…")
+                    .font(Theme.mono(9, .bold))
+                    .foregroundStyle(codec == "HEVC ✓" ? Theme.neonDim
+                                     : (codec == nil ? Theme.grayDark : Theme.amber))
                 if model.dupeVideoIDs.contains(m.id) {
                     Text(t("DUPE?"))
                         .font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
@@ -336,21 +374,6 @@ struct PhotosView: View {
         .padding(.horizontal, 20).padding(.vertical, 12)
         .background(Theme.panel)
         .overlay(Rectangle().fill(Theme.border).frame(height: 1), alignment: .top)
-    }
-}
-
-/// Etiqueta de códec de un vídeo: los "HEVC ✓" ya no dan ahorro.
-struct VideoCodecTag: View {
-    let asset: PHAsset
-    @State private var label: String?
-
-    var body: some View {
-        Text(label ?? "…")
-            .font(Theme.mono(9, .bold))
-            .foregroundStyle(label == "HEVC ✓" ? Theme.neonDim
-                             : (label == nil ? Theme.grayDark : Theme.amber))
-            .help(label == "HEVC ✓" ? t("Already HEVC — recompressing won't shrink it") : "")
-            .task { label = await PhotosModel.codecLabel(for: asset) }
     }
 }
 

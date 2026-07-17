@@ -45,6 +45,7 @@ final class PhotosModel: ObservableObject {
     @Published var bigVideos: [PhotoAsset] = []
     @Published var rawPhotos: [PhotoAsset] = []
     @Published var dupeVideoIDs: Set<String> = []   // vídeos con gemelo probable
+    @Published var codecByID: [String: String] = [:]  // códec por vídeo ("HEVC ✓"…)
     @Published var selected: Set<String> = []      // marcadas para BORRAR
     @Published var optSelected: Set<String> = []   // marcadas para OPTIMIZAR
     @Published var workingAsset: PHAsset?          // elemento en curso (miniatura)
@@ -62,7 +63,10 @@ final class PhotosModel: ObservableObject {
         allAssets.filter { selected.contains($0.id) }.map(\.fileSize).reduce(0, +)
     }
     var selectedCount: Int { selected.count }
-    var selectedVideos: [PhotoAsset] { bigVideos.filter { optSelected.contains($0.id) } }
+    // Solo son convertibles los que NO están ya en HEVC
+    var selectedVideos: [PhotoAsset] {
+        bigVideos.filter { optSelected.contains($0.id) && codecByID[$0.id] != "HEVC ✓" }
+    }
     var selectedRaws: [PhotoAsset] { rawPhotos.filter { optSelected.contains($0.id) } }
 
     private var allAssets: [PhotoAsset] {
@@ -148,7 +152,20 @@ final class PhotosModel: ObservableObject {
         rawPhotos = cache.rawIDs.compactMap(rebuild)
         dupeVideoIDs = Set(cache.dupeVideoIDs).intersection(phByID.keys)
         cacheDate = cache.date
+        loadVideoCodecs()
         AppLog.log("CACHE: restaurado análisis del \(cache.date) (\(groups.count) grupos, \(bigVideos.count) vídeos, \(rawPhotos.count) raws)")
+    }
+
+    /// Resuelve el códec de los vídeos grandes en segundo plano (progresivo).
+    private func loadVideoCodecs() {
+        let pending = bigVideos.filter { codecByID[$0.id] == nil }
+        guard !pending.isEmpty else { return }
+        Task.detached(priority: .utility) {
+            for v in pending {
+                let label = await Self.codecLabel(for: v.asset)
+                await MainActor.run { self.codecByID[v.id] = label }
+            }
+        }
     }
 
     func requestAndScan() {
@@ -198,6 +215,7 @@ final class PhotosModel: ObservableObject {
         bigVideos = collected.1.sorted { $0.fileSize > $1.fileSize }
         rawPhotos = collected.2.sorted { $0.fileSize > $1.fileSize }
         dupeVideoIDs = Self.findDupeVideos(bigVideos)
+        loadVideoCodecs()
 
         // Huellas visuales + agrupación por ventana temporal
         let total = images.count
