@@ -6,6 +6,7 @@ enum MediaSort { case size, date, name }
 struct PhotosView: View {
     @ObservedObject var model: PhotosModel
     @State private var preview: PreviewTarget?
+    @State private var videoOptions: PreviewTarget?
     @State private var rawSort: MediaSort = .size
     @State private var videoSort: MediaSort = .size
     @State private var dupeFilter: DupeTier?   // nil = todos los niveles
@@ -104,6 +105,7 @@ struct PhotosView: View {
         .background(Theme.bg)
         .onAppear { model.refreshStatus() }
         .sheet(item: $preview) { AssetPreview(target: $0) }
+        .sheet(item: $videoOptions) { VideoOptimizeSheet(model: model, target: $0) }
     }
 
     private var header: some View {
@@ -445,10 +447,23 @@ struct PhotosView: View {
             AssetThumb(asset: m.asset).frame(width: 44, height: 28).clipped()
                 .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
                 .help(t("Click to preview"))
-            Text(m.filename ?? "—")
-                .font(Theme.small).foregroundStyle(Theme.gray)
-                .lineLimit(1).truncationMode(.middle)
+            if m.asset.mediaType == .video {
+                // clic en el nombre = ficha con perfiles de conversión
+                Button { videoOptions = PreviewTarget(id: m.id, asset: m.asset) } label: {
+                    Text(m.filename ?? "—")
+                        .font(Theme.small).foregroundStyle(Theme.neon)
+                        .underline()
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                .buttonStyle(.plain)
                 .frame(maxWidth: 180, alignment: .leading)
+                .help(t("Click for conversion options (optimal / max compression)"))
+            } else {
+                Text(m.filename ?? "—")
+                    .font(Theme.small).foregroundStyle(Theme.gray)
+                    .lineLimit(1).truncationMode(.middle)
+                    .frame(maxWidth: 180, alignment: .leading)
+            }
             Text(m.asset.creationDate.map { Self.df.string(from: $0) } ?? "—")
                 .font(Theme.small).foregroundStyle(Theme.grayDark)
             if m.asset.mediaType == .video {

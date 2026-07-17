@@ -17,6 +17,12 @@ struct PhotoAsset: Identifiable {
     var filename: String?
 }
 
+/// Perfil de conversión de vídeo.
+enum VideoProfile {
+    case optimal      // HEVC, misma resolución, pérdida casi invisible
+    case aggressive   // 1080p + compresión fuerte
+}
+
 /// Nivel de parecido dentro de un grupo (según la peor distancia interna).
 enum DupeTier {
     case exact      // duplicadas (~100%)
@@ -470,10 +476,14 @@ final class PhotosModel: ObservableObject {
     // MARK: Optimización — vídeo → HEVC y RAW → HEIC
     // El original se conserva en "Eliminado recientemente" 30 días: red de seguridad.
 
-    func optimizeSelectedVideos() { optimize(selectedVideos, video: true) }
+    func optimizeSelectedVideos() { optimize(selectedVideos, video: true, profile: .optimal) }
     func convertSelectedRaws()   { optimize(selectedRaws, video: false) }
+    /// Conversión individual desde la ficha del vídeo, con perfil elegido.
+    func optimizeVideo(_ pa: PhotoAsset, profile: VideoProfile) {
+        optimize([pa], video: true, profile: profile)
+    }
 
-    private func optimize(_ targets: [PhotoAsset], video: Bool) {
+    private func optimize(_ targets: [PhotoAsset], video: Bool, profile: VideoProfile = .optimal) {
         guard !optimizing, !targets.isEmpty else { return }
         optimizing = true
         Task {
@@ -490,15 +500,16 @@ final class PhotosModel: ObservableObject {
                 workingAsset = pa.asset
                 let base = Double(i)
 
-                // Los HEVC no dan ahorro: cuenta como "sin ganancia", no error
-                if video, await Self.codecLabel(for: pa.asset) == "HEVC ✓" {
+                // En perfil óptimo, un HEVC no da ahorro; en agresivo sí (reescala)
+                if video, profile == .optimal, await Self.codecLabel(for: pa.asset) == "HEVC ✓" {
                     AppLog.log("  \(pa.filename ?? pa.id): ya es HEVC, sin ganancia posible")
                     noGain += 1
                     continue
                 }
+                let plan = TranscodePlan.make(for: pa, profile: profile)
                 let outURL = await Task.detached(priority: .userInitiated) {
                     video
-                        ? await Self.exportHEVC(pa.asset) { itemFrac in
+                        ? await Self.exportVideo(pa.asset, plan: plan) { itemFrac in
                             Task { @MainActor in self.optFraction = (base + itemFrac) / Double(n) }
                           }
                         : Self.rawToHEIC(pa.asset)
@@ -571,10 +582,45 @@ final class PhotosModel: ObservableObject {
         }
     }
 
-    /// Reexporta un vídeo a HEVC manteniendo resolución (AVAssetExportSession).
-    /// `progress` recibe la fracción real de exportación (0…1).
-    nonisolated static func exportHEVC(_ asset: PHAsset,
-                                       progress: @escaping @Sendable (Double) -> Void) async -> URL? {
+    // MARK: Transcodificación de vídeo con control de bitrate
+
+    /// Plan de conversión: dimensiones, bitrate objetivo y estimación de tamaño.
+    struct TranscodePlan {
+        let width: Int
+        let height: Int
+        let bitrate: Int          // bits/s de vídeo
+        let estBytes: Int64       // estimación del resultado
+
+        /// Calcula el plan desde los metadatos del asset (sin abrir el fichero).
+        nonisolated static func make(for pa: PhotoAsset, profile: VideoProfile) -> TranscodePlan {
+            let seconds = max(1.0, pa.asset.duration)
+            let srcBps = Double(pa.fileSize) * 8.0 / seconds
+            var w = pa.asset.pixelWidth, h = pa.asset.pixelHeight
+            var target: Double
+            switch profile {
+            case .optimal:
+                // misma resolución, ~45% del bitrate original (HEVC rinde eso
+                // frente a H.264 con pérdida casi invisible)
+                target = min(max(srcBps * 0.45, 6_000_000), 40_000_000)
+            case .aggressive:
+                // reescala a 1080p y comprime fuerte
+                let maxDim = Double(max(w, h))
+                if maxDim > 1920 {
+                    let f = 1920.0 / maxDim
+                    w = Int(Double(w) * f) & ~1   // dimensiones pares
+                    h = Int(Double(h) * f) & ~1
+                }
+                target = min(max(srcBps * 0.12, 4_000_000), 10_000_000)
+            }
+            target = min(target, srcBps * 0.85)   // nunca apuntar por encima del original
+            let est = Int64((target + 192_000) / 8.0 * seconds)   // + audio
+            return TranscodePlan(width: w, height: h, bitrate: Int(target), estBytes: est)
+        }
+    }
+
+    /// Descarga el AVAsset y lo transcodifica a HEVC según el plan.
+    nonisolated static func exportVideo(_ asset: PHAsset, plan: TranscodePlan,
+                                        progress: @escaping @Sendable (Double) -> Void) async -> URL? {
         let opts = PHVideoRequestOptions()
         opts.isNetworkAccessAllowed = true    // el original puede estar solo en iCloud
         opts.deliveryMode = .highQualityFormat
@@ -584,30 +630,113 @@ final class PhotosModel: ObservableObject {
             }
         }
         guard let avAsset else { return nil }
-
-        // Si ya es HEVC, recomprimir no aporta nada: fuera.
-        if let track = try? await avAsset.loadTracks(withMediaType: .video).first,
-           let desc = try? await track.load(.formatDescriptions).first,
-           CMFormatDescriptionGetMediaSubType(desc) == kCMVideoCodecType_HEVC {
-            AppLog.log("VIDEO \(asset.localIdentifier): ya es HEVC, omitido")
-            return nil
-        }
-
-        guard let session = AVAssetExportSession(asset: avAsset,
-                                                 presetName: AVAssetExportPresetHEVCHighestQuality)
-        else { return nil }
         let out = FileManager.default.temporaryDirectory
             .appendingPathComponent("neonsweep-\(UUID().uuidString).mov")
+        let ok = await transcode(avAsset, to: out, plan: plan, progress: progress)
+        if !ok { try? FileManager.default.removeItem(at: out); return nil }
+        return out
+    }
+
+    /// AVAssetReader → AVAssetWriter: HEVC con bitrate controlado, escala vía
+    /// composición de vídeo (respeta la orientación) y audio en passthrough.
+    nonisolated static func transcode(_ avAsset: AVAsset, to out: URL, plan: TranscodePlan,
+                                      progress: @escaping @Sendable (Double) -> Void) async -> Bool {
         do {
-            let export = Task { try await session.export(to: out, as: .mov) }
-            for await state in session.states(updateInterval: 0.5) {
-                if case .exporting(let p) = state { progress(p.fractionCompleted) }
+            guard let vTrack = try await avAsset.loadTracks(withMediaType: .video).first else { return false }
+            let duration = try await avAsset.load(.duration).seconds
+            let fps = try await vTrack.load(.nominalFrameRate)
+
+            let reader = try AVAssetReader(asset: avAsset)
+            let writer = try AVAssetWriter(outputURL: out, fileType: .mov)
+
+            let comp = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: avAsset)
+            comp.renderSize = CGSize(width: plan.width, height: plan.height)
+            let vOut = AVAssetReaderVideoCompositionOutput(
+                videoTracks: [vTrack],
+                videoSettings: [kCVPixelBufferPixelFormatTypeKey as String:
+                                kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange])
+            vOut.videoComposition = comp
+            guard reader.canAdd(vOut) else { return false }
+            reader.add(vOut)
+
+            let vIn = AVAssetWriterInput(mediaType: .video, outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.hevc,
+                AVVideoWidthKey: plan.width,
+                AVVideoHeightKey: plan.height,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: plan.bitrate,
+                    AVVideoExpectedSourceFrameRateKey: Int(max(24, fps.rounded())),
+                ] as [String: Any],
+            ])
+            vIn.expectsMediaDataInRealTime = false
+            writer.add(vIn)
+
+            var aOut: AVAssetReaderTrackOutput?
+            var aIn: AVAssetWriterInput?
+            if let aTrack = try await avAsset.loadTracks(withMediaType: .audio).first {
+                let o = AVAssetReaderTrackOutput(track: aTrack, outputSettings: nil)
+                if reader.canAdd(o) {
+                    reader.add(o)
+                    aOut = o
+                    let desc = try await aTrack.load(.formatDescriptions).first
+                    let i = AVAssetWriterInput(mediaType: .audio, outputSettings: nil,
+                                               sourceFormatHint: desc)
+                    i.expectsMediaDataInRealTime = false
+                    writer.add(i)
+                    aIn = i
+                }
             }
-            try await export.value
+
+            guard reader.startReading(), writer.startWriting() else {
+                AppLog.log("TRANSCODE: no arranca (reader \(reader.error?.localizedDescription ?? "-"))")
+                return false
+            }
+            writer.startSession(atSourceTime: .zero)
+
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                let group = DispatchGroup()
+                group.enter()
+                vIn.requestMediaDataWhenReady(on: DispatchQueue(label: "ns.video")) {
+                    while vIn.isReadyForMoreMediaData {
+                        if let sb = vOut.copyNextSampleBuffer() {
+                            if duration > 0 {
+                                let t = CMSampleBufferGetPresentationTimeStamp(sb).seconds
+                                progress(min(1, t / duration))
+                            }
+                            vIn.append(sb)
+                        } else {
+                            vIn.markAsFinished()
+                            group.leave()
+                            return
+                        }
+                    }
+                }
+                if let aIn, let aOut {
+                    group.enter()
+                    aIn.requestMediaDataWhenReady(on: DispatchQueue(label: "ns.audio")) {
+                        while aIn.isReadyForMoreMediaData {
+                            if let sb = aOut.copyNextSampleBuffer() {
+                                aIn.append(sb)
+                            } else {
+                                aIn.markAsFinished()
+                                group.leave()
+                                return
+                            }
+                        }
+                    }
+                }
+                group.notify(queue: .global()) { cont.resume() }
+            }
+            await writer.finishWriting()
+            if writer.status != .completed {
+                AppLog.log("TRANSCODE: fallo escribiendo (\(writer.error?.localizedDescription ?? "-"))")
+                return false
+            }
             progress(1)
-            return out
+            return true
         } catch {
-            return nil
+            AppLog.log("TRANSCODE: \(error.localizedDescription)")
+            return false
         }
     }
 

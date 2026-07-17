@@ -201,6 +201,15 @@
 "none" = "ninguno";
 "recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted" = "recomprime a HEVC manteniendo resolución; el original queda 30 días en Eliminado recientemente";
 "[ RECOMPRESS SELECTED → HEVC ]" = "[ RECOMPRIMIR MARCADOS → HEVC ]";
+"OPTIMAL — HEVC, same resolution" = "ÓPTIMA — HEVC, misma resolución";
+"nearly invisible quality loss; ideal to keep as archive" = "pérdida casi invisible; ideal para conservar como archivo";
+"MAX — 1080p + strong compression" = "MÁXIMA — 1080p + compresión fuerte";
+"downscales 4K to 1080p; fine for casual viewing and sharing" = "baja el 4K a 1080p; de sobra para ver y compartir";
+"estimated: ~%@ (−%d%%)" = "estimado: ~%@ (−%d%%)";
+"[ CONVERT ]" = "[ CONVERTIR ]";
+"The original stays 30 days in Recently Deleted; only replaced if it truly shrinks ≥15%." = "El original queda 30 días en Eliminado recientemente; solo se reemplaza si encoge de verdad ≥15%.";
+"video no longer in the list" = "el vídeo ya no está en la lista";
+"Click for conversion options (optimal / max compression)" = "Clic para opciones de conversión (óptima / compresión máxima)";
 "RAW PHOTOS — %d" = "FOTOS RAW — %d";
 "[date]" = "[fecha]";
 "showing %d of %d" = "mostrando %d de %d";
