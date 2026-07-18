@@ -225,6 +225,8 @@
 "recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted" = "recomprime a HEVC manteniendo resolución; el original queda 30 días en Eliminado recientemente";
 "[ RECOMPRESS SELECTED → HEVC ]" = "[ RECOMPRIMIR MARCADOS → HEVC ]";
 "batch profile:" = "perfil del lote:";
+"HEIC quality:" = "calidad HEIC:";
+"// last FULL analysis %d days ago — RE-ANALYZE ALL also matches new photos against old ones" = "// último análisis COMPLETO hace %d días — RE-ANALIZAR TODO cruza también fotos nuevas con antiguas";
 "[optimal]" = "[óptima]";
 "[max 1080p]" = "[máxima 1080p]";
 "OPTIMAL — HEVC, same resolution" = "ÓPTIMA — HEVC, misma resolución";

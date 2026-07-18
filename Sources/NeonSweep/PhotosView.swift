@@ -184,6 +184,10 @@ struct PhotosView: View {
                                     Self.df.string(from: d)))
                             .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     }
+                    if let days = model.daysSinceFullScan, days > 30, !model.scanning {
+                        Text(String(format: t("// last FULL analysis %d days ago — RE-ANALYZE ALL also matches new photos against old ones"), days))
+                            .font(Theme.mono(10)).foregroundStyle(Theme.amber)
+                    }
                     switch model.status {
                     case .notDetermined:
                         askAccess
@@ -541,6 +545,10 @@ struct PhotosView: View {
                     Text(t("// Shift-click marks a range"))
                         .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     Spacer()
+                    Text(t("HEIC quality:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    qualityChip("85", 0.85)
+                    qualityChip("90", 0.90)
+                    qualityChip("95", 0.95)
                     Button { model.optSelected.formUnion(shownRaws.map(\.id)) } label: {
                         Text(t("[ MARK SHOWN ]"))
                             .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
@@ -635,6 +643,21 @@ struct PhotosView: View {
             Text(formatBytes(m.fileSize))
                 .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
         }
+    }
+
+    @AppStorage("heic.quality") private var heicQuality = 0.9
+
+    private func qualityChip(_ label: String, _ value: Double) -> some View {
+        Button { heicQuality = value } label: {
+            Text("[\(label)]")
+                .font(Theme.mono(10, abs(heicQuality - value) < 0.001 ? .bold : .regular))
+                .foregroundStyle(abs(heicQuality - value) < 0.001 ? Theme.neon : Theme.grayDark)
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NeonClick())
+        .accessibilityLabel(t("HEIC quality:") + " \(label)")
+        .accessibilityAddTraits(abs(heicQuality - value) < 0.001 ? .isSelected : [])
     }
 
     private func profileChip(_ label: String, _ value: String) -> some View {

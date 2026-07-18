@@ -378,7 +378,15 @@ final class PhotosModel: ObservableObject {
         saveCache(imageMeta: imgMeta,
                   analyzedUpTo: images.last?.asset.creationDate?.timeIntervalSince1970,
                   partial: false)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "photos.lastFullScan")
         SoundFX.shared.play(.done)
+    }
+
+    /// Días desde el último análisis completo (nil si nunca se completó uno).
+    var daysSinceFullScan: Int? {
+        let ts = UserDefaults.standard.double(forKey: "photos.lastFullScan")
+        guard ts > 0 else { return nil }
+        return Int(Date().timeIntervalSince1970 - ts) / 86_400
     }
 
     /// Lee metadatos de un fetch (tamaños, RAW, nombre) fuera del hilo principal.
@@ -802,12 +810,19 @@ final class PhotosModel: ObservableObject {
             let seconds = max(1.0, pa.asset.duration)
             let srcBps = Double(pa.fileSize) * 8.0 / seconds
             var w = pa.asset.pixelWidth, h = pa.asset.pixelHeight
+            // Factores ajustables (tuning avanzado):
+            // defaults write com.davidcornejo.neonsweep video.optimal.pct 45
+            // defaults write com.davidcornejo.neonsweep video.max.pct 12
+            let optPct = { let v = UserDefaults.standard.integer(forKey: "video.optimal.pct")
+                           return v > 0 ? Double(v) / 100 : 0.45 }()
+            let maxPct = { let v = UserDefaults.standard.integer(forKey: "video.max.pct")
+                           return v > 0 ? Double(v) / 100 : 0.12 }()
             var target: Double
             switch profile {
             case .optimal:
                 // misma resolución, ~45% del bitrate original (HEVC rinde eso
                 // frente a H.264 con pérdida casi invisible)
-                target = min(max(srcBps * 0.45, 6_000_000), 40_000_000)
+                target = min(max(srcBps * optPct, 6_000_000), 40_000_000)
             case .aggressive:
                 // reescala a 1080p y comprime fuerte
                 let maxDim = Double(max(w, h))
@@ -816,7 +831,7 @@ final class PhotosModel: ObservableObject {
                     w = Int(Double(w) * f) & ~1   // dimensiones pares
                     h = Int(Double(h) * f) & ~1
                 }
-                target = min(max(srcBps * 0.12, 4_000_000), 10_000_000)
+                target = min(max(srcBps * maxPct, 4_000_000), 10_000_000)
             }
             target = min(target, srcBps * 0.85)   // nunca apuntar por encima del original
             let est = Int64((target + 192_000) / 8.0 * seconds)   // + audio
@@ -1006,7 +1021,9 @@ final class PhotosModel: ObservableObject {
         }
         // Conservar EXIF/TIFF/GPS/IPTC: ImageIO no sabe leer el ARW directo,
         // pero el CIImage del CIRAWFilter trae los metadatos en .properties
-        var props: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 0.9]
+        // Calidad elegida por el usuario (85/90/95; por defecto 0.9)
+        let q = UserDefaults.standard.double(forKey: "heic.quality")
+        var props: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: q > 0 ? q : 0.9]
         for key in [kCGImagePropertyExifDictionary, kCGImagePropertyTIFFDictionary,
                     kCGImagePropertyGPSDictionary, kCGImagePropertyIPTCDictionary] {
             if let v = image.properties[key as String] { props[key] = v }
