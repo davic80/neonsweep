@@ -84,11 +84,15 @@ final class PhotosModel: ObservableObject {
     /// limita por núcleos (dejando 4 al sistema) y por RAM (~200 MB por RAW
     /// en vuelo → 1 trabajador por cada 2 GB sobre un suelo de 4). Ejemplos:
     /// M1 8GB→2 · M1 16GB→4 · M5 10c/16GB→6 · M3 Max 48GB→12 (tope).
-    nonisolated static let rawWorkers: Int = {
+    /// Experimental: `defaults write com.davidcornejo.neonsweep raw.workers N`
+    /// fuerza N trabajadores (1-16) para afinar con el perfilado activado.
+    nonisolated static var rawWorkers: Int {
+        let override = UserDefaults.standard.integer(forKey: "raw.workers")
+        if override > 0 { return min(16, override) }
         let cores = ProcessInfo.processInfo.activeProcessorCount
         let ramGB = Int(ProcessInfo.processInfo.physicalMemory / 1_073_741_824)
         return max(2, min(12, min(cores - 4, (ramGB - 4) / 2)))
-    }()
+    }
 
     /// CIContext compartido: crearlo es caro y es seguro entre hilos;
     /// reutilizarlo acelera los lotes y reduce el pico de memoria.
@@ -122,7 +126,7 @@ final class PhotosModel: ObservableObject {
 
     // MARK: Caché del análisis (reabrir la app no obliga a re-analizar)
 
-    private struct Cache: Codable {
+    struct Cache: Codable {
         struct CAsset: Codable { let id: String; let size: Int64; let raw: Bool; let name: String? }
         struct CGroup: Codable { let members: [String]; let tier: Int; let best: String }
         let date: Date
@@ -131,6 +135,16 @@ final class PhotosModel: ObservableObject {
         let videoIDs: [String]
         let rawIDs: [String]
         let dupeVideoIDs: [String]
+        // Checkpoint: metadatos de TODAS las imágenes (evita releer 107k por
+        // XPC) y hasta qué fecha llegó el análisis si quedó a medias.
+        var imageMeta: [CAsset]?
+        var analyzedUpTo: Double?
+        var partial: Bool?
+    }
+
+    nonisolated static func loadCacheFile() -> Cache? {
+        guard let data = try? Data(contentsOf: cacheURL) else { return nil }
+        return try? JSONDecoder().decode(Cache.self, from: data)
     }
 
     private nonisolated static var cacheURL: URL {
@@ -140,12 +154,16 @@ final class PhotosModel: ObservableObject {
         return dir.appendingPathComponent("photoscan.json")
     }
 
-    private func saveCache() {
+    private func saveCache(imageMeta: [Cache.CAsset]? = nil,
+                           analyzedUpTo: Double? = nil,
+                           partial: Bool = false) {
         var seen = Set<String>()
         var assets: [Cache.CAsset] = []
         for pa in groups.flatMap(\.members) + bigVideos + rawPhotos where seen.insert(pa.id).inserted {
             assets.append(Cache.CAsset(id: pa.id, size: pa.fileSize, raw: pa.isRaw, name: pa.filename))
         }
+        // Conservar checkpoint previo cuando el llamante no aporta uno nuevo
+        let prev = (imageMeta == nil || analyzedUpTo == nil) ? Self.loadCacheFile() : nil
         let cache = Cache(
             date: Date(),
             assets: assets,
@@ -156,7 +174,10 @@ final class PhotosModel: ObservableObject {
             },
             videoIDs: bigVideos.map(\.id),
             rawIDs: rawPhotos.map(\.id),
-            dupeVideoIDs: Array(dupeVideoIDs))
+            dupeVideoIDs: Array(dupeVideoIDs),
+            imageMeta: imageMeta ?? prev?.imageMeta,
+            analyzedUpTo: analyzedUpTo ?? prev?.analyzedUpTo,
+            partial: imageMeta == nil ? (prev?.partial ?? false) : partial)
         if let data = try? JSONEncoder().encode(cache) {
             try? data.write(to: Self.cacheURL)
         }
@@ -226,10 +247,11 @@ final class PhotosModel: ObservableObject {
         Task {
             status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             guard status == .authorized || status == .limited else { return }
-            if !fullRescan, hasResults, let token = Self.loadChangeToken() {
+            if !fullRescan, hasResults, Self.loadCacheFile()?.partial != true,
+               let token = Self.loadChangeToken() {
                 await incrementalScan(since: token)
             } else {
-                await fullScan()
+                await fullScan(resume: !fullRescan)
             }
         }
     }
@@ -292,49 +314,77 @@ final class PhotosModel: ObservableObject {
         }
     }
 
-    private func fullScan() async {
+    private func fullScan(resume: Bool = true) async {
         guard !scanning else { return }
         scanning = true
-        let firstRun = !hasResults   // con resultados previos, no vaciar la vista
+
+        // Checkpoint previo: metadatos ya leídos y análisis a medias
+        let checkpoint = resume ? Self.loadCacheFile() : nil
+        let known = Dictionary(uniqueKeysWithValues:
+            (checkpoint?.imageMeta ?? []).map { ($0.id, $0) })
+        if !known.isEmpty {
+            AppLog.log("SCAN: reutilizando metadatos de \(known.count) imágenes del checkpoint")
+        }
 
         let opts = PHFetchOptions()
         opts.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
         let fetch = PHAsset.fetchAssets(with: opts)
 
         progress = String(format: t("reading library (%d items)…"), fetch.count)
-        let collected = await Self.collect(fetch) { done, total in
+        let collected = await Self.collect(fetch, known: known) { done, total in
             Task { @MainActor in self.fraction = Double(done) / Double(max(1, total)) * 0.5 }
         }
         let images = collected.images
         let newVideos = collected.videos.sorted { $0.fileSize > $1.fileSize }
         let newRaws = collected.raws.sorted { $0.fileSize > $1.fileSize }
-        if firstRun {
-            // primera pasada: enseñar RAWs y vídeos en cuanto están
-            bigVideos = newVideos
-            rawPhotos = newRaws
-            dupeVideoIDs = Self.findDupeVideos(newVideos)
-            loadVideoCodecs()
-        }
-
-        let newGroups = await groupImages(images, baseFraction: 0.5, span: 0.5)
-
-        groups = newGroups.sorted { $0.totalSize > $1.totalSize }
+        // RAWs y vídeos disponibles en cuanto termina la lectura
         bigVideos = newVideos
         rawPhotos = newRaws
         dupeVideoIDs = Self.findDupeVideos(newVideos)
         loadVideoCodecs()
+
+        let imgMeta = images.map {
+            Cache.CAsset(id: $0.id, size: $0.fileSize, raw: $0.isRaw, name: $0.filename)
+        }
+        // ¿Análisis a medias? Sembrar los grupos ya hechos y saltar lo analizado
+        var seed: [DupeGroup] = []
+        var skipUntil: Double?
+        if let c = checkpoint, c.partial == true, let upTo = c.analyzedUpTo {
+            let byID = Dictionary(uniqueKeysWithValues: images.map { ($0.id, $0) })
+            seed = c.groups.compactMap { g in
+                let members = g.members.compactMap { byID[$0] }
+                guard members.count >= 2, members.contains(where: { $0.id == g.best }) else { return nil }
+                let tier: DupeTier = g.tier == 0 ? .exact : g.tier == 1 ? .near : .similar
+                return DupeGroup(members: members, tier: tier, bestID: g.best)
+            }
+            skipUntil = upTo
+            AppLog.log("SCAN: reanudando análisis desde \(Date(timeIntervalSince1970: upTo)) con \(seed.count) grupos previos")
+        }
+
+        let newGroups = await groupImages(images, baseFraction: 0.5, span: 0.5,
+                                          seed: seed, skipUntil: skipUntil) { partialGroups, upTo in
+            // Checkpoint: si la app muere a mitad, se reanuda desde aquí
+            self.groups = partialGroups.sorted { $0.totalSize > $1.totalSize }
+            self.saveCache(imageMeta: imgMeta,
+                           analyzedUpTo: upTo.timeIntervalSince1970, partial: true)
+        }
+
+        groups = newGroups.sorted { $0.totalSize > $1.totalSize }
         pruneSelections()
         progress = ""
         fraction = nil
         scanning = false
         cacheDate = nil   // resultados frescos
-        saveCache()
+        saveCache(imageMeta: imgMeta,
+                  analyzedUpTo: images.last?.asset.creationDate?.timeIntervalSince1970,
+                  partial: false)
         SoundFX.shared.play(.done)
     }
 
     /// Lee metadatos de un fetch (tamaños, RAW, nombre) fuera del hilo principal.
     nonisolated static func collect(
         _ fetch: PHFetchResult<PHAsset>,
+        known: [String: Cache.CAsset] = [:],
         onProgress: @escaping @Sendable (Int, Int) -> Void
     ) async -> (images: [PhotoAsset], videos: [PhotoAsset], raws: [PhotoAsset]) {
         await Task.detached(priority: .userInitiated) {
@@ -345,13 +395,22 @@ final class PhotosModel: ObservableObject {
                 autoreleasepool {
                     done += 1
                     if done % 100 == 0 { onProgress(done, total) }
-                    let meta = Self.resourceMeta(of: asset)
-                    let pa = PhotoAsset(id: asset.localIdentifier, asset: asset,
+                    // Con checkpoint: los metadatos ya conocidos se reutilizan
+                    // (evita una llamada XPC por foto — la fase pasa de minutos
+                    // a segundos en relanzamientos)
+                    let pa: PhotoAsset
+                    if let k = known[asset.localIdentifier] {
+                        pa = PhotoAsset(id: asset.localIdentifier, asset: asset,
+                                        fileSize: k.size, isRaw: k.raw, filename: k.name)
+                    } else {
+                        let meta = Self.resourceMeta(of: asset)
+                        pa = PhotoAsset(id: asset.localIdentifier, asset: asset,
                                         fileSize: meta.size, isRaw: meta.isRaw,
                                         filename: meta.filename)
+                    }
                     switch asset.mediaType {
                     case .image:
-                        if meta.isRaw { raws.append(pa) }
+                        if pa.isRaw { raws.append(pa) }
                         imgs.append(pa)
                     case .video:
                         if pa.fileSize >= Self.bigVideoMinBytes { vids.append(pa) }
@@ -373,9 +432,12 @@ final class PhotosModel: ObservableObject {
     /// Agrupación por huella visual con ventana temporal. baseFraction/span
     /// mapean el avance de esta fase sobre la barra de progreso.
     private func groupImages(_ images: [PhotoAsset],
-                             baseFraction: Double, span: Double) async -> [DupeGroup] {
+                             baseFraction: Double, span: Double,
+                             seed: [DupeGroup] = [], skipUntil: Double? = nil,
+                             onCheckpoint: ((_ groups: [DupeGroup], _ upTo: Date) -> Void)? = nil) async -> [DupeGroup] {
         let total = images.count
-        var result: [DupeGroup] = []
+        var result: [DupeGroup] = seed
+        let seededIDs = Set(seed.flatMap { $0.members.map(\.id) })
         var window: [(PhotoAsset, VNFeaturePrintObservation)] = []
         var current: [(PhotoAsset, VNFeaturePrintObservation)] = []
         var currentWorst: Float = 0   // peor distancia interna del grupo
@@ -392,10 +454,19 @@ final class PhotosModel: ObservableObject {
         }
 
         for (i, pa) in images.enumerated() {
+            // Reanudación: saltar lo ya analizado en el checkpoint
+            if let s = skipUntil,
+               let d = pa.asset.creationDate, d.timeIntervalSince1970 <= s {
+                continue
+            }
+            _ = seededIDs   // los grupos sembrados ya cubren ese tramo
             if i % 25 == 0 {
                 progress = String(format: t("analyzing %d/%d…"), i, total)
                 fraction = baseFraction + Double(i) / Double(max(1, total)) * span
                 await Task.yield()
+            }
+            if i % 2500 == 0, i > 0, let cb = onCheckpoint, let d = pa.asset.creationDate {
+                cb(result, d)
             }
             guard let print = await Task.detached(priority: .userInitiated, operation: {
                 Self.featurePrint(for: pa.asset)
@@ -534,6 +605,7 @@ final class PhotosModel: ObservableObject {
         Task {
             var noGain = 0, failed = 0
             let n = targets.count
+            let batchStart = Date()
             AppLog.log("OPTIMIZE inicio: \(n) elementos, modo \(video ? "vídeo→HEVC" : "RAW→HEIC (\(Self.rawWorkers) trabajadores)")")
 
             // FASE 1: convertir todo a ficheros temporales (sin tocar Fotos).
@@ -695,6 +767,13 @@ final class PhotosModel: ObservableObject {
             optFraction = nil
             optimizing = false
             SoundFX.shared.play(done > 0 || noGain > 0 ? .done : .error)
+            let wall = Date().timeIntervalSince(batchStart)
+            if processed > 0, wall > 0 {
+                AppLog.log(String(format: "PROFILE lote %@: %d elementos en %.0fs (%.1f/min) con %d trabajadores",
+                                  video ? "vídeo" : "RAW", processed, wall,
+                                  Double(processed) / wall * 60,
+                                  video ? 1 : Self.rawWorkers))
+            }
             AppLog.log("OPTIMIZE fin: \(done) ok, \(noGain) sin ganancia, \(failed) errores, ahorro \(formatBytes(savedTotal))")
             lastResult = String(format: t("%@: %d optimized, %d no gain, %d errors — %@ saved (log: ~/Library/Logs/NeonSweep.log)"),
                                 failed == 0 ? "OK" : t("WARN"), done, noGain, failed, formatBytes(savedTotal))
@@ -865,6 +944,7 @@ final class PhotosModel: ObservableObject {
     /// Convierte un RAW a HEIC (CIRAWFilter + CIContext, pipeline oficial de Apple).
     /// Pide explícitamente el recurso RAW (clave en assets RAW+JPEG o en iCloud).
     nonisolated static func rawToHEIC(_ asset: PHAsset) -> URL? {
+        let tStart = Date()
         let resources = PHAssetResource.assetResources(for: asset)
         let name = resources.first?.originalFilename ?? asset.localIdentifier
         guard let rawRes = resources.first(where: {
@@ -891,6 +971,7 @@ final class PhotosModel: ObservableObject {
             return nil
         }
         AppLog.log("RAW \(name): \(data.count / 1_000_000) MB de \(rawRes.uniformTypeIdentifier)")
+        let tDown = Date()
 
         // El identifierHint es OBLIGATORIO: sin él, el decodificador RAW no
         // identifica la cámara y devuelve una imagen vacía (extent infinito).
@@ -908,6 +989,7 @@ final class PhotosModel: ObservableObject {
             AppLog.log("RAW \(name): no se pudo renderizar la imagen")
             return nil
         }
+        let tDecode = Date()
         let out = FileManager.default.temporaryDirectory
             .appendingPathComponent("neonsweep-\(UUID().uuidString).heic")
         guard let dest = CGImageDestinationCreateWithURL(out as CFURL, UTType.heic.identifier as CFString, 1, nil) else {
@@ -925,6 +1007,15 @@ final class PhotosModel: ObservableObject {
         guard CGImageDestinationFinalize(dest) else {
             AppLog.log("RAW \(name): CGImageDestinationFinalize falló")
             return nil
+        }
+        if AppLog.profileEnabled {
+            let now = Date()
+            AppLog.log(String(format: "PROFILE %@ bajada=%.1fs decode=%.1fs encode=%.1fs total=%.1fs",
+                              name,
+                              tDown.timeIntervalSince(tStart),
+                              tDecode.timeIntervalSince(tDown),
+                              now.timeIntervalSince(tDecode),
+                              now.timeIntervalSince(tStart)))
         }
         return out
     }

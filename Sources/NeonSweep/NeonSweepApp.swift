@@ -49,6 +49,7 @@ struct RootView: View {
     @State private var selected: Module = .dashboard
     @State private var dropTargeted = false
     @State private var sweeping = true   // barrido de arranque
+    @State private var dbg = AppLog.profileEnabled
 
     var body: some View {
         HStack(spacing: 0) {
@@ -117,9 +118,17 @@ struct RootView: View {
                     .font(Theme.mono(18, .bold))
                     .foregroundStyle(Theme.neon)
                     .shadow(color: Theme.neon.opacity(0.5), radius: 6)
-                Text("v0.2.0 // mac cleaner")
-                    .font(Theme.mono(10))
-                    .foregroundStyle(Theme.grayDark)
+                Button {
+                    AppLog.setProfile(!AppLog.profileEnabled)
+                    dbg = AppLog.profileEnabled
+                } label: {
+                    Text("v0.2.0 // mac cleaner" + (dbg ? " [dbg]" : ""))
+                        .font(Theme.mono(10))
+                        .foregroundStyle(dbg ? Theme.amber : Theme.grayDark)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .help(t("Toggle performance profiling (writes to ~/Library/Logs/NeonSweep.log)"))
             }
             .padding(.bottom, 24)
 
