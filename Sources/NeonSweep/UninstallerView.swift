@@ -86,6 +86,18 @@ struct UninstallerView: View {
                     }
                 }
             }
+            Button { model.scanOrphans() } label: {
+                Text(model.orphanScanning ? t("[ SEARCHING ORPHANS… ]") : t("[ FIND ORPHANS ]"))
+                    .font(Theme.mono(11, .bold))
+                    .foregroundStyle(model.orphanScanning ? Theme.grayDark : Theme.neon)
+                    .padding(.vertical, 4).padding(.horizontal, 7)
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                        model.orphanScanning ? Theme.border : Theme.neon, lineWidth: 1))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .disabled(model.orphanScanning || model.loadingApps)
+            .help(t("Leftovers from apps you deleted in the past (reverse bundle-ID scan)"))
             Text("\(model.filteredApps.count) " + t("apps //  = Apple removable; system apps (SIP) hidden"))
                 .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
             HStack(spacing: 10) {
@@ -120,7 +132,9 @@ struct UninstallerView: View {
 
     @ViewBuilder
     private var detail: some View {
-        if let app = model.selectedApp {
+        if model.showingOrphans {
+            orphansDetail
+        } else if let app = model.selectedApp {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     Image(nsImage: app.icon).resizable().frame(width: 34, height: 34)
@@ -152,6 +166,91 @@ struct UninstallerView: View {
                 BlinkingCursor()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    // MARK: Huérfanos
+
+    private var orphansDetail: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(t("ORPHANED LEFTOVERS")).font(Theme.mono(17, .bold)).foregroundStyle(Theme.neon)
+                    Text(t("reverse-DNS entries whose vendor has no installed app — review before checking"))
+                        .font(Theme.small).foregroundStyle(Theme.grayDark)
+                }
+                Spacer()
+                Button { model.showingOrphans = false } label: {
+                    Text(t("[ CLOSE ]")).font(Theme.mono(11, .bold)).foregroundStyle(Theme.neonDim)
+                }
+                .buttonStyle(NeonClick())
+            }
+            if model.orphanScanning {
+                ProgressStrip(label: t("searching leftovers in ~/Library"), fraction: nil)
+            } else if model.orphans.isEmpty {
+                Text(t("no orphans found — clean as a whistle"))
+                    .font(Theme.body).foregroundStyle(Theme.neonDim)
+            } else {
+                NeonScrollView {
+                    LazyVStack(alignment: .leading, spacing: 3) {
+                        ForEach(model.orphans) { o in
+                            orphanRow(o)
+                        }
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            HStack {
+                if let r = model.lastResult {
+                    Text(r).font(Theme.small)
+                        .foregroundStyle(r.hasPrefix("OK") ? Theme.neon : Theme.amber)
+                }
+                Spacer()
+                let checkedSize = model.orphans.filter { model.orphanChecked.contains($0.id) }
+                    .map(\.size).reduce(0, +)
+                Text("\(model.orphanChecked.count) " + t("checked =") + " \(formatBytes(checkedSize))")
+                    .font(Theme.body).foregroundStyle(Theme.gray)
+                Button { model.trashCheckedOrphans() } label: {
+                    Text(t("[ MOVE TO TRASH ]"))
+                        .font(Theme.mono(13, .bold))
+                        .foregroundStyle(model.orphanChecked.isEmpty ? Theme.grayDark : Theme.neon)
+                        .padding(.vertical, 6).padding(.horizontal, 10)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                            model.orphanChecked.isEmpty ? Theme.border : Theme.neon, lineWidth: 1))
+                }
+                .buttonStyle(NeonClick())
+                .disabled(model.orphanChecked.isEmpty)
+            }
+        }
+        .padding(18)
+    }
+
+    private func orphanRow(_ o: OrphanEntry) -> some View {
+        let isSel = model.orphanChecked.contains(o.id)
+        return HStack(spacing: 8) {
+            Button {
+                if isSel { model.orphanChecked.remove(o.id) } else { model.orphanChecked.insert(o.id) }
+            } label: {
+                Text(isSel ? "[x]" : "[ ]")
+                    .font(Theme.body)
+                    .foregroundStyle(isSel ? Theme.neon : Theme.grayDark)
+                    .frame(minWidth: 28, minHeight: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .accessibilityLabel(o.bundleID)
+            .accessibilityValue(isSel ? t("marked") : t("not marked"))
+            Text(t(o.location))
+                .font(Theme.small).foregroundStyle(Theme.neonDim)
+                .frame(width: 130, alignment: .leading)
+            Text(o.bundleID)
+                .font(Theme.small).foregroundStyle(Theme.gray)
+                .lineLimit(1).truncationMode(.middle)
+                .help(o.path)
+            Spacer()
+            Text(formatBytes(o.size))
+                .font(Theme.small)
+                .foregroundStyle(o.size > 100_000_000 ? Theme.neon : Theme.gray)
         }
     }
 

@@ -73,6 +73,12 @@
 "Everything goes to the macOS Trash: you can restore it from Finder." = "Todo va a la Papelera de macOS: puedes restaurarlo desde Finder.";
 "Application" = "Aplicación";
 "OK: %d items → Trash (%@)" = "OK: %d elementos → Papelera (%@)";
+"[ FIND ORPHANS ]" = "[ BUSCAR HUÉRFANOS ]";
+"[ SEARCHING ORPHANS… ]" = "[ BUSCANDO HUÉRFANOS… ]";
+"Leftovers from apps you deleted in the past (reverse bundle-ID scan)" = "Restos de apps que borraste en el pasado (escaneo inverso por bundle ID)";
+"ORPHANED LEFTOVERS" = "RESTOS HUÉRFANOS";
+"reverse-DNS entries whose vendor has no installed app — review before checking" = "entradas reverse-DNS de fabricantes sin ninguna app instalada — revisa antes de marcar";
+"no orphans found — clean as a whistle" = "sin huérfanos — está limpísimo";
 "WARN: could not move: %@" = "AVISO: no se pudieron mover: %@";
 "WARN: %d items could not be moved (in use?)" = "AVISO: %d elementos no se pudieron mover (¿en uso?)";
 

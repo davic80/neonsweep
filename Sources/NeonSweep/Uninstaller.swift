@@ -24,6 +24,15 @@ struct InstalledApp: Identifiable, Hashable {
 
 enum AppSortKey { case name, size, running }
 
+/// Resto huérfano: carpeta/fichero con pinta de bundle ID cuya app ya no existe.
+struct OrphanEntry: Identifiable {
+    var id: String { path }
+    let path: String
+    let location: String
+    let bundleID: String
+    let size: Int64
+}
+
 enum MatchKind { case appBundle, bundleID, name }
 
 struct LeftoverFile: Identifiable {
@@ -47,6 +56,10 @@ final class UninstallerModel: ObservableObject {
     @Published var inspecting = false
     @Published var loadingApps = false
     @Published var lastResult: String?
+    @Published var orphans: [OrphanEntry] = []
+    @Published var orphanChecked: Set<String> = []
+    @Published var orphanScanning = false
+    @Published var showingOrphans = false
 
     var filteredApps: [InstalledApp] {
         var list = apps
@@ -169,6 +182,7 @@ final class UninstallerModel: ObservableObject {
     // MARK: Buscar restos de una app
 
     func inspect(_ app: InstalledApp) {
+        showingOrphans = false
         selectedApp = app
         inspecting = true
         leftovers = []
@@ -217,6 +231,94 @@ final class UninstallerModel: ObservableObject {
             }
         }
         return out
+    }
+
+    // MARK: Huérfanos — restos de apps que ya no están instaladas
+
+    /// Escaneo inverso: entradas con formato de bundle ID en ~/Library cuyo
+    /// fabricante (dos primeros componentes) no corresponde a ninguna app
+    /// instalada. Conservador: solo nombres reverse-DNS, nunca com.apple.*.
+    func scanOrphans() {
+        guard !orphanScanning else { return }
+        orphanScanning = true
+        showingOrphans = true
+        orphans = []
+        orphanChecked = []
+        let installedPrefixes = Set(apps.map { Self.vendorPrefix($0.bundleID) })
+        Task {
+            let found = await Task.detached(priority: .userInitiated) {
+                Self.findOrphans(installedPrefixes: installedPrefixes)
+            }.value
+            self.orphans = found.sorted { $0.size > $1.size }
+            self.orphanScanning = false
+        }
+    }
+
+    /// "group.com.spotify.client" → "com.spotify"
+    nonisolated static func vendorPrefix(_ bid: String) -> String {
+        var parts = bid.lowercased().split(separator: ".")
+        if parts.first == "group" { parts.removeFirst() }
+        return parts.prefix(2).joined(separator: ".")
+    }
+
+    nonisolated static func findOrphans(installedPrefixes: Set<String>) -> [OrphanEntry] {
+        let fm = FileManager.default
+        var out: [OrphanEntry] = []
+        for (locName, locPath) in locations {
+            guard let entries = try? fm.contentsOfDirectory(atPath: locPath) else { continue }
+            for entry in entries {
+                // Preferences guarda ficheros com.x.y.plist; el resto, carpetas
+                var candidate = entry
+                if candidate.hasSuffix(".plist") {
+                    candidate = String(candidate.dropLast(6))
+                }
+                let lower = candidate.lowercased()
+                // Solo formato reverse-DNS claro (mínimo tld.vendor.app)
+                let parts = lower.split(separator: ".")
+                guard parts.count >= 3, parts[0].count <= 6,
+                      parts[0].allSatisfy(\.isLetter) else { continue }
+                // Jamás señalar cosas de Apple
+                guard !lower.hasPrefix("com.apple."),
+                      !lower.hasPrefix("group.com.apple") else { continue }
+                // Si el fabricante sigue instalado (cualquier app suya), no es huérfano
+                guard !installedPrefixes.contains(Self.vendorPrefix(lower)) else { continue }
+                let full = "\(locPath)/\(entry)"
+                var isDir: ObjCBool = false
+                fm.fileExists(atPath: full, isDirectory: &isDir)
+                let size = isDir.boolValue
+                    ? ScanModel.directorySize(URL(fileURLWithPath: full))
+                    : ((try? fm.attributesOfItem(atPath: full))?[.size] as? Int64 ?? 0)
+                guard size > 0 else { continue }
+                out.append(OrphanEntry(path: full, location: locName,
+                                       bundleID: candidate, size: size))
+            }
+        }
+        return out
+    }
+
+    func trashCheckedOrphans() {
+        let targets = orphans.filter { orphanChecked.contains($0.id) }
+        guard !targets.isEmpty else { return }
+        Task {
+            var freed: Int64 = 0
+            var failed = 0
+            for t in targets {
+                do {
+                    try await NSWorkspace.shared.recycle([URL(fileURLWithPath: t.path)])
+                    freed += t.size
+                } catch {
+                    failed += 1
+                }
+            }
+            FreedTracker.shared.addTrashed(freed)
+            TrashModel.shared.refresh()
+            orphans.removeAll { orphanChecked.contains($0.id) && failed == 0 }
+            lastResult = failed == 0
+                ? String(format: t("OK: %d items → Trash (%@)"), targets.count, formatBytes(freed))
+                : String(format: t("WARN: %d items could not be moved (in use?)"), failed)
+            if failed > 0 { scanOrphans() }
+            orphanChecked = []
+        }
     }
 
     // MARK: Enviar a la Papelera (deshacible desde Finder)
