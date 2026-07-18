@@ -590,7 +590,15 @@ final class PhotosModel: ObservableObject {
     // MARK: Optimización — vídeo → HEVC y RAW → HEIC
     // El original se conserva en "Eliminado recientemente" 30 días: red de seguridad.
 
-    func optimizeSelectedVideos() { optimize(selectedVideos, video: true, profile: .optimal) }
+    /// Lote de vídeos con perfil elegido; en MÁXIMA los HEVC también entran
+    /// (reescalar a 1080p sí les ahorra).
+    func optimizeSelectedVideos(profile: VideoProfile = .optimal) {
+        let targets = bigVideos.filter {
+            optSelected.contains($0.id)
+                && (profile == .aggressive || codecByID[$0.id] != "HEVC ✓")
+        }
+        optimize(targets, video: true, profile: profile)
+    }
     func convertSelectedRaws()   { optimize(selectedRaws, video: false) }
     /// Conversión individual desde la ficha del vídeo, con perfil elegido.
     func optimizeVideo(_ pa: PhotoAsset, profile: VideoProfile) {

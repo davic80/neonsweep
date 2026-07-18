@@ -12,6 +12,15 @@ struct PhotosView: View {
     @State private var videoSort: MediaSort = .size
     @State private var dupeFilter: DupeTier?   // nil = todos los niveles
     @AppStorage("photos.tab") private var tabRaw = PhotoTab.all.rawValue
+    @AppStorage("photos.videoProfile") private var videoProfileRaw = "optimal"
+
+    private var batchProfile: VideoProfile { videoProfileRaw == "max" ? .aggressive : .optimal }
+    private var batchVideoCount: Int {
+        model.bigVideos.filter {
+            model.optSelected.contains($0.id)
+                && (batchProfile == .aggressive || model.codecByID[$0.id] != "HEVC ✓")
+        }.count
+    }
     @AppStorage("photos.rawLimit") private var rawLimit = 50
     @AppStorage("photos.videoLimit") private var videoLimit = 50
 
@@ -460,10 +469,13 @@ struct PhotosView: View {
                     Text(t("recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted"))
                         .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     Spacer()
+                    Text(t("batch profile:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    profileChip(t("[optimal]"), "optimal")
+                    profileChip(t("[max 1080p]"), "max")
                     optimizeButton(
                         label: t("[ RECOMPRESS SELECTED → HEVC ]"),
-                        count: model.selectedVideos.count
-                    ) { model.optimizeSelectedVideos() }
+                        count: batchVideoCount
+                    ) { model.optimizeSelectedVideos(profile: batchProfile) }
                 }
                 Text(t("// HEVC ✓ = no gain · DUPE? = probable twin · click the name for conversion profiles"))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
@@ -490,9 +502,12 @@ struct PhotosView: View {
                     }
                     .buttonStyle(NeonClick())
                     if showHEVC {
+                        let hevcShown = Array(sorted(hevcVideos, by: videoSort).prefix(videoLimit))
                         LazyVStack(alignment: .leading, spacing: 3) {
-                            ForEach(sorted(hevcVideos, by: videoSort).prefix(videoLimit)) { m in
-                                assetRow(m, optimizable: false)
+                            ForEach(hevcShown) { m in
+                                // Con perfil MÁXIMA los HEVC sí son optimizables (reescala)
+                                assetRow(m, in: hevcShown, key: "hevc",
+                                         optimizable: batchProfile == .aggressive)
                             }
                         }
                     }
@@ -620,6 +635,18 @@ struct PhotosView: View {
             Text(formatBytes(m.fileSize))
                 .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
         }
+    }
+
+    private func profileChip(_ label: String, _ value: String) -> some View {
+        Button { videoProfileRaw = value } label: {
+            Text(label)
+                .font(Theme.mono(10, videoProfileRaw == value ? .bold : .regular))
+                .foregroundStyle(videoProfileRaw == value ? Theme.neon : Theme.grayDark)
+                .padding(.vertical, 3).padding(.horizontal, 4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NeonClick())
+        .accessibilityAddTraits(videoProfileRaw == value ? .isSelected : [])
     }
 
     private func optimizeButton(label: String, count: Int, action: @escaping () -> Void) -> some View {

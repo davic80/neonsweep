@@ -222,6 +222,9 @@
 "none" = "ninguno";
 "recompress to HEVC keeping resolution; the original stays 30 days in Recently Deleted" = "recomprime a HEVC manteniendo resolución; el original queda 30 días en Eliminado recientemente";
 "[ RECOMPRESS SELECTED → HEVC ]" = "[ RECOMPRIMIR MARCADOS → HEVC ]";
+"batch profile:" = "perfil del lote:";
+"[optimal]" = "[óptima]";
+"[max 1080p]" = "[máxima 1080p]";
 "OPTIMAL — HEVC, same resolution" = "ÓPTIMA — HEVC, misma resolución";
 "nearly invisible quality loss; ideal to keep as archive" = "pérdida casi invisible; ideal para conservar como archivo";
 "MAX — 1080p + strong compression" = "MÁXIMA — 1080p + compresión fuerte";
