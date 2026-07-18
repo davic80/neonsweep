@@ -122,7 +122,7 @@ struct RootView: View {
                     AppLog.setProfile(!AppLog.profileEnabled)
                     dbg = AppLog.profileEnabled
                 } label: {
-                    Text("v0.2.0 // mac cleaner" + (dbg ? " [dbg]" : ""))
+                    Text("v0.3.0 // mac cleaner" + (dbg ? " [dbg]" : ""))
                         .font(Theme.mono(10))
                         .foregroundStyle(dbg ? Theme.amber : Theme.grayDark)
                         .contentShape(Rectangle())
@@ -132,7 +132,7 @@ struct RootView: View {
             }
             .padding(.bottom, 24)
 
-            ForEach(Module.allCases) { m in
+            ForEach(Array(Module.allCases.enumerated()), id: \.element) { idx, m in
                 Button {
                     selected = m
                 } label: {
@@ -143,13 +143,24 @@ struct RootView: View {
                             .foregroundStyle(Theme.grayDark)
                         Text(m.label)
                             .foregroundStyle(selected == m ? Theme.neon : Theme.gray)
+                        Spacer()
+                        Text("⌘\(idx + 1)")
+                            .font(Theme.mono(9))
+                            .foregroundStyle(Theme.grayDark)
                     }
                     .font(Theme.mono(13, selected == m ? .bold : .regular))
                     .padding(.vertical, 6)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(NeonClick())
+                .keyboardShortcut(KeyEquivalent(Character("\(idx + 1)")), modifiers: .command)
+                .accessibilityAddTraits(selected == m ? .isSelected : [])
             }
+            // ⌘R: re-escanea/actualiza el módulo activo
+            Button("") { rescanCurrent() }
+                .keyboardShortcut("r", modifiers: .command)
+                .opacity(0).frame(width: 0, height: 0)
+                .accessibilityHidden(true)
             Spacer()
             freedCounter
             HStack {
@@ -194,6 +205,17 @@ struct RootView: View {
         .padding(20)
         .frame(width: 230, alignment: .leading)
         .background(Theme.bg)
+    }
+
+    private func rescanCurrent() {
+        switch selected {
+        case .dashboard:   model.scan()
+        case .uninstaller: uninstaller.loadApps()
+        case .systemJunk:  systemJunk.scan()
+        case .devJunk:     devJunk.scan()
+        case .photos:      photos.requestAndScan()
+        case .updates:     updates.scan()
+        }
     }
 
     private var freedCounter: some View {

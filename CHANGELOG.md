@@ -2,6 +2,32 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.3.0] — 2026-07-18
+
+### Added
+- **[06] UPDATES module**: Homebrew formulae/casks (`brew outdated --json`) and App Store (via `mas` when installed) with per-package and upgrade-all actions.
+- **Incremental photo analysis** via Photos' persistent change history: *Update analysis* only processes what changed; results stay visible and selectable while any scan runs. **Checkpoints** every 2500 images: killed mid-scan, the app resumes where it stopped and reuses cached metadata (read phase drops from minutes to seconds).
+- **Bitrate-controlled video transcoder** (AVAssetReader/Writer): OPTIMAL (same resolution, ~45% source bitrate) and MAX (1080p, 4-10 Mbps) profiles; click a video's filename for a per-video sheet with estimated savings. Audio passthrough, orientation preserved, real per-frame progress.
+- **Three-step optimization commit**: import → verify (dimensions of every new asset) → delete originals with a single system confirmation. Worst case is duplicates, never data loss.
+- **Parallel RAW conversion** scaled to any Apple Silicon (cores + RAM aware, 2-12 workers; measured 291 RAWs/min on an M5). Pause/resume mid-batch and stop-and-import controls. `raw.workers` override + performance profiling flag ([dbg] on the version line) with per-phase timings.
+- **Duplicate tiers** (exact / near / similar) with filter chips, per-group delete, whole-set delete (including best), bulk mark per tier, and a user-selectable BEST (☆) chosen by GPS > oldest real date (epoch-corrupt dates excluded) > resolution > size, with per-thumb metadata visible.
+- **Preview** (click thumbnails / double-click dupe cells): high-res image or playable video, Esc to close.
+- **Video twin detection** (same duration/resolution/size) flagged DUPE? with an explicit delete toggle.
+- **Retro effects**: startup cursor-bar sweep, synthesized square-wave sounds (boot arpeggio, clicks, deletion glide, completion chime, error buzz) with a persisted mute toggle.
+- **Purgeable panel** on the dashboard: lists and deletes Time Machine local snapshots, measuring truly-freed space.
+- **Permissions panel** (Full Disk / Automation / Photos) with live status, auto-collapsed to one line when all granted.
+- **Drop inspector**: drag any photo/video onto the window for codec/dimensions and estimated optimization savings.
+- **UX/accessibility round**: collapsible panels with per-panel memory, Photos ALL/RAW/VIDEOS/DUPES tabs, two-way pagination with remembered limits, Shift-click range selection, sort by size/date/name, ⌘1-⌘6 module shortcuts + ⌘R rescan, VoiceOver labels on all ASCII controls, WCAG-friendly contrast, persisted [A-]/[A+] text scale, 28pt hit targets.
+- Activity log at `~/Library/Logs/NeonSweep.log`; diagnostic CLI modes (`--diag-videos`, `--diag-find`, `--diag-export-raw`).
+
+### Fixed
+- RAW decode required `identifierHint` (silent infinite-extent failure) and CIContext's HEIF writer fails on large RAWs — replaced with ImageIO writer; EXIF/TIFF/GPS/IPTC preserved from the RAW decoder. Verified: 37 MB ARW → 3 MB HEIC, metadata intact.
+- Video preview crash: AVKit framework was not linked by SPM auto-linking.
+- Converted assets keep their original filename; HEVC sources are excluded from optimal recompression and only counted as "no gain".
+- "Cleaned today" persists per calendar day instead of per session.
+- Delete and optimize selections are independent (marked dupes no longer leaked into conversion batches); nothing is pre-checked.
+- Uninstaller lists removable Apple apps (iWork, iMovie…) and sorts by name/size/running with login-item indicators.
+
 ## [Unreleased]
 
 ### Added

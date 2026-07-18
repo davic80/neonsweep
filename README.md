@@ -14,7 +14,8 @@
 | 02 | **UNINSTALLER** | Pick an app, see every leftover it dropped in `~/Library` (bundle-ID matching, 12 locations), move it all to Trash |
 | 03 | **SYSTEM JUNK** | User caches, logs, iOS backups (with device name & date), old installers, saved app state |
 | 04 | **DEV JUNK** | Xcode DerivedData & DeviceSupport, simulators, Docker/Colima/OrbStack, 11 package-manager caches, forgotten `node_modules` |
-| 05 | **PHOTOS** | Duplicate & similar photo groups (Vision feature prints), plus the killer feature: **recompress huge videos → HEVC** and **convert RAW → HEIC** with the original kept 30 days in Recently Deleted |
+| 05 | **PHOTOS** | Duplicate & similar groups (Vision feature prints, 3 tiers, user-pickable BEST), plus the killer feature: **RAW → HEIC** (parallel, ~92% savings, EXIF intact) and **video → HEVC** with optimal/max profiles. Incremental analysis with resume checkpoints; import → verify → delete safety flow |
+| 06 | **UPDATES** | Pending Homebrew formulae/casks and App Store updates (via `mas`), upgradeable per package or all at once |
 
 ## Safety model / Modelo de seguridad
 

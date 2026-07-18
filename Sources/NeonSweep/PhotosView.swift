@@ -465,6 +465,8 @@ struct PhotosView: View {
                         count: model.selectedVideos.count
                     ) { model.optimizeSelectedVideos() }
                 }
+                Text(t("// HEVC ✓ = no gain · DUPE? = probable twin · click the name for conversion profiles"))
+                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                 if optimizableVideos.isEmpty {
                     Text(t("everything already in HEVC ✓"))
                         .font(Theme.body).foregroundStyle(Theme.neonDim)
@@ -521,6 +523,8 @@ struct PhotosView: View {
                 }
                 HStack {
                     sortPicker($rawSort)
+                    Text(t("// Shift-click marks a range"))
+                        .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     Spacer()
                     Button { model.optSelected.formUnion(shownRaws.map(\.id)) } label: {
                         Text(t("[ MARK SHOWN ]"))
