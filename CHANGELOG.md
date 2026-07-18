@@ -2,6 +2,19 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.4.0] — 2026-07-18
+
+### Added
+- **[07] ICLOUD DUPES module**: exact file deduplication in iCloud Drive via streaming SHA-256 (size pre-grouping so only real candidates get hashed); not-downloaded placeholders are skipped and counted separately; shortest path kept per group; deletion frees space locally and in the cloud after sync.
+- **Orphaned leftovers scan** in the uninstaller: reverse bundle-ID matching finds `~/Library` entries whose vendor prefix (e.g. `com.acme`) has no currently installed app — conservative by design, never flags `com.apple.*`, nothing preselected.
+- **System-level leftovers** (`/Library`): uninstaller now also scans Application Support/Caches/Preferences/LaunchAgents/LaunchDaemons at the system level, tagged `(admin)`, never preselected; deletion goes through a single admin-authorization prompt (`do shell script … with administrator privileges`) since there's no system Trash. Time Machine snapshot deletion also retries via admin privileges when `tmutil` alone is denied.
+- **Selectable batch video profile** (optimal / max 1080p) for the big-videos batch button; MAX makes already-HEVC videos checkable too, since downscaling still saves space.
+- **Configurable HEIC quality** (85/90/95, persisted) and advanced video bitrate tuning knobs (`video.optimal.pct` / `video.max.pct` via `defaults write`).
+- **Stale full-scan reminder**: an amber note appears when the last *full* photo analysis is more than 30 days old, since incremental scans never cross-match new photos against old ones.
+- **Keyboard navigation** in the Photos RAW/video lists: arrow keys move a highlighted row, space toggles it, return opens the preview, shift+arrow extends the mark — on top of existing shift-click ranges.
+- **`--module <name>` CLI flag** opens NeonSweep directly on a given module (dashboard/uninstaller/systemJunk/devJunk/photos/updates/icloudDupes) — useful for demos and screenshots.
+- **Unit test suite** (swift-testing): brew/mas output parsers, orphan vendor-prefix matching, admin shell-quoting, file-dupe-group keep logic, streaming SHA-256, video-twin size threshold. Caught and fixed a real bug: a greedy regex in `parseMas` left a trailing space in the installed-version string. CI runs the suite on every push.
+
 ## [0.3.0] — 2026-07-18
 
 ### Added
