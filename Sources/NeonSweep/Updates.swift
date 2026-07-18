@@ -158,7 +158,7 @@ final class UpdatesModel: ObservableObject {
     /// Formato de `mas outdated`: "446107677  Magnet (2.4.5 -> 2.14.0)"
     nonisolated static func parseMas(_ out: String) -> [UpdateItem] {
         out.split(separator: "\n").compactMap { line in
-            let pattern = #"^(\d+)\s+(.+?)\s+\(([^)]+)\s*->\s*([^)]+)\)\s*$"#
+            let pattern = #"^(\d+)\s+(.+?)\s+\(([^)]+?)\s*->\s*([^)]+)\)\s*$"#
             guard let r = line.range(of: pattern, options: .regularExpression) else { return nil }
             let m = String(line[r])
             guard let regex = try? NSRegularExpression(pattern: pattern),
@@ -168,8 +168,10 @@ final class UpdatesModel: ObservableObject {
                   let nameR = Range(match.range(at: 2), in: m),
                   let fromR = Range(match.range(at: 3), in: m),
                   let toR = Range(match.range(at: 4), in: m) else { return nil }
-            return UpdateItem(name: String(m[nameR]), installed: String(m[fromR]),
-                              latest: String(m[toR]), kind: .appStore, masID: String(m[idR]))
+            return UpdateItem(name: String(m[nameR]),
+                              installed: String(m[fromR]).trimmingCharacters(in: .whitespaces),
+                              latest: String(m[toR]).trimmingCharacters(in: .whitespaces),
+                              kind: .appStore, masID: String(m[idR]))
         }
     }
 }

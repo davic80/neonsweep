@@ -143,7 +143,50 @@ struct PhotosView: View {
         return s
     }
 
+    @State private var navCursor: String?   // fila bajo el cursor de teclado
+
+    /// Lista sobre la que actúa el teclado según la pestaña visible.
+    private func keyboardList() -> [PhotoAsset] {
+        switch tab {
+        case .videos: return Array(sorted(optimizableVideos, by: videoSort).prefix(videoLimit))
+        default:      return shownRaws
+        }
+    }
+
+    private func handleKey(_ press: KeyPress, proxy: ScrollViewProxy) -> KeyPress.Result {
+        let list = keyboardList()
+        guard !list.isEmpty else { return .ignored }
+        switch press.key {
+        case .downArrow, .upArrow:
+            let delta = press.key == .downArrow ? 1 : -1
+            let idx = navCursor.flatMap { c in list.firstIndex { $0.id == c } }
+                ?? (delta == 1 ? -1 : list.count)
+            let m = list[min(max(idx + delta, 0), list.count - 1)]
+            navCursor = m.id
+            if press.modifiers.contains(.shift) { model.optSelected.insert(m.id) }
+            withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(m.id, anchor: .center) }
+            return .handled
+        case .space:
+            guard let c = navCursor, let m = list.first(where: { $0.id == c }) else { return .ignored }
+            if model.optSelected.contains(m.id) { model.optSelected.remove(m.id) }
+            else { model.optSelected.insert(m.id) }
+            return .handled
+        case .return:
+            guard let c = navCursor, let m = list.first(where: { $0.id == c }) else { return .ignored }
+            preview = PreviewTarget(id: m.id, asset: m.asset)
+            return .handled
+        default:
+            return .ignored
+        }
+    }
+
     var body: some View {
+        ScrollViewReader { proxy in
+            bodyContent(proxy: proxy)
+        }
+    }
+
+    private func bodyContent(proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             NeonScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
@@ -208,6 +251,9 @@ struct PhotosView: View {
             footer
         }
         .background(Theme.bg)
+        .focusable()
+        .focusEffectDisabled()
+        .onKeyPress(phases: .down) { handleKey($0, proxy: proxy) }
         .onAppear { model.refreshStatus() }
         .sheet(item: $preview) { AssetPreview(target: $0) }
         .sheet(item: $videoOptions) { VideoOptimizeSheet(model: model, target: $0) }
@@ -493,6 +539,13 @@ struct PhotosView: View {
                 LazyVStack(alignment: .leading, spacing: 3) {
                     ForEach(shownVideos) { m in
                         assetRow(m, in: shownVideos, key: "video")
+                            .id(m.id)
+                            .background(navCursor == m.id ? Theme.bg : .clear)
+                            .overlay(alignment: .leading) {
+                                if navCursor == m.id {
+                                    Rectangle().fill(Theme.neon).frame(width: 2)
+                                }
+                            }
                     }
                 }
                 if !optimizableVideos.isEmpty {
@@ -542,7 +595,7 @@ struct PhotosView: View {
                 }
                 HStack {
                     sortPicker($rawSort)
-                    Text(t("// Shift-click marks a range"))
+                    Text(t("// Shift-click = range · ↑↓ move · space mark · ↵ preview"))
                         .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     Spacer()
                     Text(t("HEIC quality:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
@@ -559,6 +612,13 @@ struct PhotosView: View {
                 LazyVStack(alignment: .leading, spacing: 3) {
                     ForEach(shownRaws) { m in
                         assetRow(m, in: shownRaws, key: "raw")
+                            .id(m.id)
+                            .background(navCursor == m.id ? Theme.bg : .clear)
+                            .overlay(alignment: .leading) {
+                                if navCursor == m.id {
+                                    Rectangle().fill(Theme.neon).frame(width: 2)
+                                }
+                            }
                     }
                 }
                 moreBar(total: model.rawPhotos.count, limit: $rawLimit)

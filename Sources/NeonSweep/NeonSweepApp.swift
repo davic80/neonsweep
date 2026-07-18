@@ -48,7 +48,15 @@ struct RootView: View {
     @ObservedObject private var lang = Lang.shared
     @ObservedObject private var sfx = SoundFX.shared
     @ObservedObject private var ui = UIScale.shared
-    @State private var selected: Module = .dashboard
+    // `--module photos` abre directamente ese módulo (útil para capturas/demos)
+    @State private var selected: Module = {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--module"), args.count > i + 1,
+           let m = Module(rawValue: args[i + 1]) {
+            return m
+        }
+        return .dashboard
+    }()
     @State private var dropTargeted = false
     @State private var sweeping = true   // barrido de arranque
     @State private var dbg = AppLog.profileEnabled

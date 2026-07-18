@@ -25,3 +25,11 @@ jobs:
         run: swift --version
       - name: Build (debug)
         run: swift build
+
+  test:
+    name: Unit Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: swift test
