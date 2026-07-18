@@ -4,6 +4,21 @@
 "DEV JUNK" = "BASURA DEV";
 "PHOTOS" = "FOTOS";
 "UPDATES" = "ACTUALIZACIONES";
+"ICLOUD DUPES" = "DUPES ICLOUD";
+
+/* Dupes iCloud Drive */
+"[ SCAN ICLOUD DRIVE ]" = "[ ESCANEAR ICLOUD DRIVE ]";
+"EXACT FILE DUPLICATES IN ICLOUD DRIVE" = "FICHEROS DUPLICADOS EXACTOS EN ICLOUD DRIVE";
+"// SHA-256 over downloaded files ≥1 MB; deleting frees space here AND in the cloud after sync. Not-downloaded files are skipped (hashing them would download everything)." = "// SHA-256 sobre ficheros descargados ≥1 MB; borrar libera espacio aquí Y en la nube tras sincronizar. Los no descargados se omiten (hashearlos lo descargaría todo).";
+"%d duplicate groups" = "%d grupos duplicados";
+"wasted: %@" = "desperdiciado: %@";
+"%d not downloaded, skipped" = "%d sin descargar, omitidos";
+"press SCAN to start" = "pulsa ESCANEAR para empezar";
+"[ MARK ALL BUT KEPT ]" = "[ MARCAR TODAS MENOS LA ★ ]";
+"GROUPS — %d" = "GRUPOS — %d";
+"no duplicates — clean as a whistle" = "sin duplicados — está limpísimo";
+"listing iCloud Drive…" = "inventariando iCloud Drive…";
+"hashing %@…" = "hasheando %@…";
 
 /* Actualizaciones */
 "[ CHECK AGAIN ]" = "[ COMPROBAR ]";
