@@ -41,6 +41,7 @@ struct LeftoverFile: Identifiable {
     let location: String   // ej. "Application Support"
     let kind: MatchKind
     var size: Int64 = 0
+    var system = false     // en /Library: borrar requiere admin y es permanente
 }
 
 // MARK: - Motor
@@ -100,6 +101,15 @@ final class UninstallerModel: ObservableObject {
         ("LaunchAgents",        "\(home)/Library/LaunchAgents"),
         ("Application Scripts", "\(home)/Library/Application Scripts"),
         ("Cookies",             "\(home)/Library/Cookies"),
+    ]
+
+    /// Rutas de sistema (/Library): legibles sin root; borrar pide admin.
+    private nonisolated static let systemLocations: [(String, String)] = [
+        ("/Library/App Support",   "/Library/Application Support"),
+        ("/Library/Caches",        "/Library/Caches"),
+        ("/Library/Preferences",   "/Library/Preferences"),
+        ("/Library/LaunchAgents",  "/Library/LaunchAgents"),
+        ("/Library/LaunchDaemons", "/Library/LaunchDaemons"),
     ]
 
     // MARK: Listar apps instaladas
@@ -193,9 +203,10 @@ final class UninstallerModel: ObservableObject {
                 Self.findLeftovers(for: app)
             }.value
             self.leftovers = found
-            // Preselección conservadora: el bundle y los matches por bundle ID.
-            // Los matches solo por nombre quedan sin marcar (riesgo de falso positivo).
-            self.checked = Set(found.filter { $0.kind != .name }.map(\.id))
+            // Preselección conservadora: el bundle y los matches por bundle ID
+            // de nivel usuario. Ni los matches por nombre ni los de /Library
+            // (permanentes) vienen marcados.
+            self.checked = Set(found.filter { $0.kind != .name && !$0.system }.map(\.id))
             self.inspecting = false
         }
     }
@@ -210,7 +221,8 @@ final class UninstallerModel: ObservableObject {
         let name = app.name.lowercased()
         let nameUsable = name.count >= 4   // nombres cortos generan demasiados falsos positivos
 
-        for (locName, locPath) in locations {
+        for (locName, locPath, isSystem) in locations.map({ ($0.0, $0.1, false) })
+            + systemLocations.map({ ($0.0, $0.1, true) }) {
             guard let entries = try? fm.contentsOfDirectory(atPath: locPath) else { continue }
             for entry in entries {
                 let e = entry.lowercased()
@@ -227,7 +239,8 @@ final class UninstallerModel: ObservableObject {
                 let size = isDir.boolValue
                     ? ScanModel.directorySize(URL(fileURLWithPath: full))
                     : ((try? fm.attributesOfItem(atPath: full))?[.size] as? Int64 ?? 0)
-                out.append(LeftoverFile(path: full, location: locName, kind: k, size: size))
+                out.append(LeftoverFile(path: full, location: locName, kind: k,
+                                        size: size, system: isSystem))
             }
         }
         return out
@@ -323,13 +336,17 @@ final class UninstallerModel: ObservableObject {
 
     // MARK: Enviar a la Papelera (deshacible desde Finder)
 
+    var checkedHasSystem: Bool {
+        leftovers.contains { checked.contains($0.id) && $0.system }
+    }
+
     func trashChecked() {
         let targets = leftovers.filter { checked.contains($0.id) }
         guard !targets.isEmpty else { return }
         Task {
             var failures: [String] = []
             var freed: Int64 = 0
-            for t in targets {
+            for t in targets where !t.system {
                 do {
                     try await NSWorkspace.shared.recycle([URL(fileURLWithPath: t.path)])
                     freed += t.size
@@ -338,6 +355,20 @@ final class UninstallerModel: ObservableObject {
                 }
             }
             FreedTracker.shared.addTrashed(freed)
+
+            // Restos de /Library: rm con admin (permanente, una autorización)
+            let sysTargets = targets.filter(\.system)
+            if !sysTargets.isEmpty {
+                let cmd = "rm -rf " + sysTargets.map { AdminOps.quoted($0.path) }.joined(separator: " ")
+                if let err = AdminOps.run(cmd) {
+                    AppLog.log("UNINSTALL admin: \(err)")
+                    failures.append("/Library (admin)")
+                } else {
+                    let sysFreed = sysTargets.map(\.size).reduce(0, +)
+                    FreedTracker.shared.addPurged(sysFreed)
+                    AppLog.log("UNINSTALL admin: \(sysTargets.count) restos de /Library eliminados (\(formatBytes(sysFreed)))")
+                }
+            }
             TrashModel.shared.refresh()
             if failures.isEmpty {
                 self.lastResult = String(format: t("OK: %d items → Trash (%@)"), targets.count, formatBytes(freed))

@@ -26,16 +26,28 @@ final class PurgeModel: ObservableObject {
         working = true
         let before = scanModel.disk.purgeable
         Task {
-            var failed = 0
+            var failedSnaps: [String] = []
             for snap in snapshots {
                 let (status, out) = await Task.detached(priority: .utility) {
                     UpdatesModel.run("/usr/bin/tmutil", ["deletelocalsnapshots", snap])
                 }.value
                 if status != 0 {
-                    failed += 1
+                    failedSnaps.append(snap)
                     AppLog.log("PURGE snapshot \(snap): fallo (\(out.trimmingCharacters(in: .whitespacesAndNewlines)))")
                 } else {
                     AppLog.log("PURGE snapshot \(snap): borrado")
+                }
+            }
+            // Reintento con privilegios de administrador (una sola autorización)
+            var failed = failedSnaps.count
+            if !failedSnaps.isEmpty {
+                let cmd = failedSnaps.map { "tmutil deletelocalsnapshots \($0)" }
+                    .joined(separator: "; ")
+                if let err = AdminOps.run(cmd) {
+                    AppLog.log("PURGE admin: \(err)")
+                } else {
+                    AppLog.log("PURGE admin: \(failedSnaps.count) snapshots borrados con privilegios")
+                    failed = 0
                 }
             }
             // Medir cuánto espacio purgable se liberó realmente

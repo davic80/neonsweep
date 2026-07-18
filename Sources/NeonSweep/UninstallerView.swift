@@ -285,6 +285,10 @@ struct UninstallerView: View {
                             Text(t("name?")).font(Theme.mono(9)).foregroundStyle(Theme.amber)
                                 .help(t("Matches by name only — review before checking"))
                         }
+                        if f.system {
+                            Text("(admin)").font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
+                                .help(t("System-level leftover: deleting asks for admin and is PERMANENT (no Trash)"))
+                        }
                         Spacer()
                         Text(formatBytes(f.size))
                             .font(Theme.small)
@@ -323,7 +327,9 @@ struct UninstallerView: View {
                 Button(t("Move to Trash"), role: .destructive) { model.trashChecked() }
                 Button(t("Cancel"), role: .cancel) {}
             } message: {
-                Text(t("Everything goes to the macOS Trash: you can restore it from Finder."))
+                Text(model.checkedHasSystem
+                     ? t("User items go to the Trash; the (admin) items in /Library are deleted PERMANENTLY after admin authorization.")
+                     : t("Everything goes to the macOS Trash: you can restore it from Finder."))
             }
         }
     }

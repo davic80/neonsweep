@@ -107,6 +107,28 @@ final class TrashModel: ObservableObject {
     }
 }
 
+/// Comandos con privilegios de administrador: `do shell script … with
+/// administrator privileges` (diálogo de autorización del sistema).
+enum AdminOps {
+    /// Devuelve el mensaje de error, o nil si fue bien (o el usuario canceló
+    /// devuelve el error de cancelación, distinguible por el código -128).
+    @MainActor static func run(_ command: String) -> String? {
+        let esc = command
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        var err: NSDictionary?
+        NSAppleScript(source: "do shell script \"\(esc)\" with administrator privileges")?
+            .executeAndReturnError(&err)
+        if let err, let msg = err[NSAppleScript.errorMessage] as? String { return msg }
+        return nil
+    }
+
+    /// Escapa una ruta para shell entre comillas simples.
+    nonisolated static func quoted(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
 /// Operaciones sobre la Papelera del usuario (APIs oficiales).
 enum TrashOps {
     nonisolated static var trashPath: String {
