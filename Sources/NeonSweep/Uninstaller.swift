@@ -33,7 +33,7 @@ struct OrphanEntry: Identifiable {
     let size: Int64
 }
 
-enum MatchKind { case appBundle, bundleID, name }
+enum MatchKind { case appBundle, bundleID, family, name }
 
 struct LeftoverFile: Identifiable {
     let id = UUID()
@@ -101,15 +101,23 @@ final class UninstallerModel: ObservableObject {
         ("LaunchAgents",        "\(home)/Library/LaunchAgents"),
         ("Application Scripts", "\(home)/Library/Application Scripts"),
         ("Cookies",             "\(home)/Library/Cookies"),
+        ("Preferences/ByHost",  "\(home)/Library/Preferences/ByHost"),
+        ("Autosave Info",       "\(home)/Library/Autosave Information"),
     ]
 
     /// Rutas de sistema (/Library): legibles sin root; borrar pide admin.
+    /// PrivilegedHelperTools es clave: ahí viven los helpers root que siguen
+    /// funcionando (y notificando) mucho después de borrar la app.
     private nonisolated static let systemLocations: [(String, String)] = [
         ("/Library/App Support",   "/Library/Application Support"),
         ("/Library/Caches",        "/Library/Caches"),
         ("/Library/Preferences",   "/Library/Preferences"),
         ("/Library/LaunchAgents",  "/Library/LaunchAgents"),
         ("/Library/LaunchDaemons", "/Library/LaunchDaemons"),
+        ("/Library/PrivilegedHelperTools", "/Library/PrivilegedHelperTools"),
+        ("/Library/Logs",          "/Library/Logs"),
+        ("/Library/Extensions",    "/Library/Extensions"),
+        ("/Library/Internet Plug-Ins", "/Library/Internet Plug-Ins"),
     ]
 
     // MARK: Listar apps instaladas
@@ -211,6 +219,27 @@ final class UninstallerModel: ObservableObject {
         }
     }
 
+    /// Familia del bundle ID: quita el sufijo de versión del último componente.
+    /// "com.macpaw.CleanMyMac5" → "com.macpaw.cleanmymac", así se encuentran
+    /// también los restos de versiones anteriores (CleanMyMac4) y los sufijos
+    /// de servicios (.Agent, .HealthMonitor, .Menu). Devuelve nil si quedaría
+    /// demasiado genérica para ser segura.
+    nonisolated static func familyID(_ bid: String) -> String? {
+        var parts = bid.lowercased().split(separator: ".").map(String.init)
+        if parts.first == "group" { parts.removeFirst() }
+        guard parts.count >= 3 else { return nil }
+        var last = parts.removeLast()
+        while let c = last.last, c.isNumber { last.removeLast() }
+        guard last.count >= 4 else { return nil }
+        let family = (parts + [last]).joined(separator: ".")
+        return family == bid.lowercased() ? nil : family
+    }
+
+    /// Nombre reducido a letras: "CleanMyMac 5" y "CleanMyMac_5" → "cleanmymac"
+    nonisolated static func normalized(_ s: String) -> String {
+        s.lowercased().filter(\.isLetter)
+    }
+
     nonisolated static func findLeftovers(for app: InstalledApp) -> [LeftoverFile] {
         let fm = FileManager.default
         var out: [LeftoverFile] = [
@@ -218,7 +247,9 @@ final class UninstallerModel: ObservableObject {
                          size: ScanModel.directorySize(URL(fileURLWithPath: app.path)))
         ]
         let bid = app.bundleID.lowercased()
+        let family = familyID(app.bundleID)
         let name = app.name.lowercased()
+        let normName = normalized(app.name)
         let nameUsable = name.count >= 4   // nombres cortos generan demasiados falsos positivos
 
         for (locName, locPath, isSystem) in locations.map({ ($0.0, $0.1, false) })
@@ -229,7 +260,11 @@ final class UninstallerModel: ObservableObject {
                 var kind: MatchKind?
                 if e.contains(bid) {
                     kind = .bundleID
-                } else if nameUsable && e.contains(name) {
+                } else if let family, e.contains(family) {
+                    // misma familia: otra versión o un servicio auxiliar
+                    kind = .family
+                } else if nameUsable && (e.contains(name)
+                                         || (normName.count >= 5 && normalized(entry).contains(normName))) {
                     kind = .name
                 }
                 guard let k = kind else { continue }
@@ -340,10 +375,42 @@ final class UninstallerModel: ObservableObject {
         leftovers.contains { checked.contains($0.id) && $0.system }
     }
 
+    /// Termina procesos de la app/familia y descarga sus servicios launchd.
+    /// Sin esto, helpers y agentes siguen vivos y RECREAN los ficheros que
+    /// acabamos de borrar (y siguen notificando).
+    private func quiesce(_ app: InstalledApp, targets: [LeftoverFile]) async {
+        let family = Self.familyID(app.bundleID) ?? app.bundleID.lowercased()
+
+        // 1) Procesos con interfaz de la misma familia (Menu, HealthMonitor…)
+        for running in NSWorkspace.shared.runningApplications {
+            guard let bid = running.bundleIdentifier?.lowercased(),
+                  bid.hasPrefix(family) || bid == app.bundleID.lowercased() else { continue }
+            AppLog.log("UNINSTALL: terminando \(bid)")
+            running.terminate()
+        }
+
+        // 2) Servicios launchd: el label es el nombre del plist sin extensión
+        let services = targets.filter { $0.path.contains("/Launch") }
+            .map { ($0.path, ($0.path as NSString).lastPathComponent
+                        .replacingOccurrences(of: ".plist", with: "")) }
+        for (path, label) in services {
+            let domain = path.hasPrefix("/Library") ? "system" : "gui/\(getuid())"
+            let (status, _) = await Task.detached(priority: .userInitiated) {
+                UpdatesModel.run("/bin/launchctl", ["bootout", "\(domain)/\(label)"])
+            }.value
+            AppLog.log("UNINSTALL: bootout \(domain)/\(label) → \(status == 0 ? "ok" : "no cargado")")
+        }
+        // Dar un instante a que los procesos mueran antes de borrar sus datos
+        try? await Task.sleep(for: .milliseconds(600))
+    }
+
     func trashChecked() {
         let targets = leftovers.filter { checked.contains($0.id) }
         guard !targets.isEmpty else { return }
         Task {
+            if let app = selectedApp {
+                await quiesce(app, targets: targets)
+            }
             var failures: [String] = []
             var freed: Int64 = 0
             for t in targets where !t.system {
@@ -359,7 +426,16 @@ final class UninstallerModel: ObservableObject {
             // Restos de /Library: rm con admin (permanente, una autorización)
             let sysTargets = targets.filter(\.system)
             if !sysTargets.isEmpty {
-                let cmd = "rm -rf " + sysTargets.map { AdminOps.quoted($0.path) }.joined(separator: " ")
+                // Descargar daemons/agents del sistema ANTES del rm, en la
+                // misma autorización (si no, siguen vivos hasta reiniciar)
+                let boots = sysTargets
+                    .filter { $0.path.contains("/Launch") }
+                    .map { "launchctl bootout system/"
+                        + ($0.path as NSString).lastPathComponent
+                            .replacingOccurrences(of: ".plist", with: "")
+                        + " 2>/dev/null || true" }
+                let cmd = (boots + ["rm -rf " + sysTargets.map { AdminOps.quoted($0.path) }
+                    .joined(separator: " ")]).joined(separator: "; ")
                 if let err = AdminOps.run(cmd) {
                     AppLog.log("UNINSTALL admin: \(err)")
                     failures.append("/Library (admin)")

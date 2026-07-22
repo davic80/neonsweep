@@ -285,6 +285,10 @@ struct UninstallerView: View {
                             Text(t("name?")).font(Theme.mono(9)).foregroundStyle(Theme.amber)
                                 .help(t("Matches by name only — review before checking"))
                         }
+                        if f.kind == .family {
+                            Text(t("family")).font(Theme.mono(9)).foregroundStyle(Theme.neonDim)
+                                .help(t("Same vendor and app family (other version or helper service)"))
+                        }
                         if f.system {
                             Text("(admin)").font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
                                 .help(t("System-level leftover: deleting asks for admin and is PERMANENT (no Trash)"))

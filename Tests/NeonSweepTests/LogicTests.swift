@@ -14,6 +14,44 @@ import CryptoKit
         #expect(UninstallerModel.vendorPrefix("org.mozilla") == "org.mozilla")
     }
 
+    // MARK: familia de bundle ID (caso CleanMyMac: restos de v4 al borrar v5)
+
+    @Test func familyID() {
+        #expect(UninstallerModel.familyID("com.macpaw.CleanMyMac5") == "com.macpaw.cleanmymac")
+        #expect(UninstallerModel.familyID("com.spotify.client") == nil,
+                "sin sufijo de versión no hay familia distinta del bundle ID")
+        #expect(UninstallerModel.familyID("com.a.b2") == nil, "familias muy cortas se descartan")
+    }
+
+    /// La familia de CleanMyMac5 debe cazar los restos reales encontrados en el
+    /// Mac (v4, servicios auxiliares) sin tocar otras apps del mismo fabricante.
+    @Test func familyMatchesRealLeftovers() throws {
+        let family = try #require(UninstallerModel.familyID("com.macpaw.CleanMyMac5"))
+        let shouldMatch = [
+            "S8EX82NJP6.com.macpaw.CleanMyMac4",
+            "S8EX82NJP6.com.macpaw.CleanMyMac5",
+            "com.macpaw.CleanMyMac5.FinderSyncExtension",
+            "com.macpaw.CleanMyMac5.HealthMonitor.plist",
+            "com.macpaw.CleanMyMac5.Agent",
+        ]
+        for entry in shouldMatch {
+            #expect(entry.lowercased().contains(family), "debería cazar \(entry)")
+        }
+        let mustNotMatch = [
+            "com.macpaw.site.theunarchiver",       // otra app instalada y en uso
+            "com.macpaw.site.Gemini2.binarycookies",
+        ]
+        for entry in mustNotMatch {
+            #expect(!entry.lowercased().contains(family), "NO debe tocar \(entry)")
+        }
+    }
+
+    @Test func normalizedName() {
+        #expect(UninstallerModel.normalized("CleanMyMac 5") == "cleanmymac")
+        #expect(UninstallerModel.normalized("CleanMyMac_5") == "cleanmymac",
+                "carpetas con guion bajo y versión coinciden con el nombre de la app")
+    }
+
     // MARK: escapado de rutas para shell admin
 
     @Test func adminQuoted() {

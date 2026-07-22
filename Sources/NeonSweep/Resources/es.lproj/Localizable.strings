@@ -81,6 +81,8 @@
 "name?" = "¿nombre?";
 "Matches by name only — review before checking" = "Coincide solo por nombre — revísalo antes de marcar";
 "System-level leftover: deleting asks for admin and is PERMANENT (no Trash)" = "Resto de nivel sistema: borrarlo pide admin y es PERMANENTE (sin Papelera)";
+"family" = "familia";
+"Same vendor and app family (other version or helper service)" = "Mismo fabricante y familia (otra versión o servicio auxiliar)";
 "User items go to the Trash; the (admin) items in /Library are deleted PERMANENTLY after admin authorization." = "Lo de usuario va a la Papelera; los (admin) de /Library se borran PERMANENTEMENTE tras autorización de administrador.";
 "checked =" = "marcados =";
 "[ MOVE TO TRASH ]" = "[ MOVER A PAPELERA ]";
