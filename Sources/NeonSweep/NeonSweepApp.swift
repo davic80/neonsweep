@@ -134,7 +134,7 @@ struct RootView: View {
                     AppLog.setProfile(!AppLog.profileEnabled)
                     dbg = AppLog.profileEnabled
                 } label: {
-                    Text("v0.4.0 // mac cleaner" + (dbg ? " [dbg]" : ""))
+                    Text("v0.5.0 // mac cleaner" + (dbg ? " [dbg]" : ""))
                         .font(Theme.mono(10))
                         .foregroundStyle(dbg ? Theme.amber : Theme.grayDark)
                         .contentShape(Rectangle())
@@ -155,7 +155,9 @@ struct RootView: View {
                             .foregroundStyle(Theme.grayDark)
                         Text(m.label)
                             .foregroundStyle(selected == m ? Theme.neon : Theme.gray)
-                        Spacer()
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 6)
                         Text("⌘\(idx + 1)")
                             .font(Theme.mono(9))
                             .foregroundStyle(Theme.grayDark)
@@ -230,7 +232,9 @@ struct RootView: View {
             .padding(.top, 10)
         }
         .padding(20)
-        .frame(width: 230, alignment: .leading)
+        // El ancho acompaña al tamaño de texto: con [A+] las secciones no se
+        // cortan ni se parten en dos líneas
+        .frame(width: 236 * Theme.scaleFactor, alignment: .leading)
         .background(Theme.bg)
     }
 
@@ -265,9 +269,11 @@ struct RootView: View {
     private func counterRow(_ label: String, _ bytes: Int64, dim: Bool = false) -> some View {
         HStack {
             Text(label).font(Theme.mono(10)).foregroundStyle(Theme.gray)
-            Spacer()
+                .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+            Spacer(minLength: 6)
             Text(formatBytes(bytes))
                 .font(Theme.mono(11, .bold))
+                .lineLimit(1)
                 .foregroundStyle(bytes == 0 ? Theme.grayDark : (dim ? Theme.neonDim : Theme.neon))
                 .shadow(color: !dim && bytes > 0 ? Theme.neon.opacity(0.5) : .clear, radius: 5)
         }

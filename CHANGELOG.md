@@ -2,6 +2,24 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.5.0] — 2026-07-22
+
+### Added
+- **Persistent local code signing** (`scripts/setup-signing.sh`): creates a self-signed *NeonSweep Dev* identity in the keychain and `build-app.sh` uses it when present. The signature stays stable across rebuilds, so macOS stops re-asking for Full Disk Access / Photos permissions (and demanding restarts) after every compile. Ad-hoc signing remains the fallback.
+- **Similarity slider** in duplicates: analysis now stores similarity *edges* (photo pairs + distance) instead of fixed groups, so moving the slider (0.10 strict → 0.80 loose) re-groups instantly via union-find with no re-analysis. Persisted and cached.
+- **Sort duplicate groups by potential saving** (everything but the BEST), with per-group `↓ size` and an aggregate for the active filter; sort chips for saving / photo count / date.
+- **The BEST photo can be deleted**: it's markable like any other member (with an amber `★ marked!` warning) for sets that are entirely junk.
+
+### Changed
+- Sidebar settings split into three labelled rows (text / sound / language) and the sidebar width now scales with the text size, so nothing wraps or gets clipped at larger sizes.
+- Bigger hit areas on duplicate cells and per-group delete buttons.
+
+### Fixed
+- **Uninstaller left services running** (found via a real CleanMyMac uninstall): processes of the same app family are now terminated and their launchd services booted out *before* anything is deleted — previously the root helper survived, recreated its preference/storage files and kept notifying. System bootout is folded into the same admin authorization as the deletion.
+- `/Library/PrivilegedHelperTools` (where root helpers live), `/Library/Logs`, `/Library/Extensions` and `/Library/Internet Plug-Ins` added to system scan paths; `~/Library/Preferences/ByHost` and `Autosave Information` to user paths.
+- **Family matching**: `com.macpaw.CleanMyMac5` → `com.macpaw.cleanmymac` now also finds leftovers from older versions and helper suffixes, without touching other apps from the same vendor; folder names are normalized so `CleanMyMac_5` matches too.
+- **Orphan scan compared vendors instead of apps**: an installed app (The Unarchiver) shielded every leftover from the same vendor (CleanMyMac). It now compares app families.
+
 ## [0.4.0] — 2026-07-18
 
 ### Added
