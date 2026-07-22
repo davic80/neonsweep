@@ -153,6 +153,8 @@ struct RootView: View {
                             .foregroundStyle(Theme.neon)
                         Text("[\(m.index)]")
                             .foregroundStyle(Theme.grayDark)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                         Text(m.label)
                             .foregroundStyle(selected == m ? Theme.neon : Theme.gray)
                             .lineLimit(1)
@@ -232,9 +234,11 @@ struct RootView: View {
             .padding(.top, 10)
         }
         .padding(20)
-        // El ancho acompaña al tamaño de texto: con [A+] las secciones no se
-        // cortan ni se parten en dos líneas
-        .frame(width: 240 * Theme.scaleFactor, alignment: .leading)
+        // El ancho lo marca el elemento más largo (p. ej. "ACTUALIZACIONES"),
+        // con un mínimo que escala con el tamaño de texto: así nada se corta
+        // ni se parte en dos líneas, sea cual sea el idioma o la escala.
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(minWidth: 240 * Theme.scaleFactor, maxWidth: 420, alignment: .leading)
         .background(Theme.bg)
     }
 

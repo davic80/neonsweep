@@ -7,32 +7,32 @@ enum GroupSort: String { case saving, count, date }
 
 struct PhotosView: View {
     @ObservedObject var model: PhotosModel
-    @State private var preview: PreviewTarget?
-    @State private var videoOptions: PreviewTarget?
-    @State private var rawSort: MediaSort = .size
-    @State private var rawAsc = false
-    @State private var videoSort: MediaSort = .size
-    @State private var videoAsc = false
-    @State private var dupeFilter: DupeTier?   // nil = todos los niveles
+    @State var preview: PreviewTarget?
+    @State var videoOptions: PreviewTarget?
+    @State var rawSort: MediaSort = .size
+    @State var rawAsc = false
+    @State var videoSort: MediaSort = .size
+    @State var videoAsc = false
+    @State var dupeFilter: DupeTier?   // nil = todos los niveles
     @AppStorage("photos.tab") private var tabRaw = PhotoTab.all.rawValue
     @AppStorage("photos.videoProfile") private var videoProfileRaw = "optimal"
 
-    private var batchProfile: VideoProfile { videoProfileRaw == "max" ? .aggressive : .optimal }
-    private var batchVideoCount: Int {
+    var batchProfile: VideoProfile { videoProfileRaw == "max" ? .aggressive : .optimal }
+    var batchVideoCount: Int {
         model.bigVideos.filter {
             model.optSelected.contains($0.id)
                 && (batchProfile == .aggressive || model.codecByID[$0.id] != "HEVC ✓")
         }.count
     }
-    @AppStorage("photos.rawLimit") private var rawLimit = 50
-    @AppStorage("photos.videoLimit") private var videoLimit = 50
+    @AppStorage("photos.rawLimit") var rawLimit = 50
+    @AppStorage("photos.videoLimit") var videoLimit = 50
 
     private var tab: PhotoTab { PhotoTab(rawValue: tabRaw) ?? .all }
     @State private var lastAnchor: [String: String] = [:]   // lista → último id clicado
 
     /// Clic normal alterna; Shift+clic aplica al rango desde el último clic,
     /// en el orden mostrado en pantalla.
-    private func toggleRow(_ m: PhotoAsset, in list: [PhotoAsset], key: String) {
+    func toggleRow(_ m: PhotoAsset, in list: [PhotoAsset], key: String) {
         let shift = NSEvent.modifierFlags.contains(.shift)
         if shift,
            let anchorID = lastAnchor[key],
@@ -50,11 +50,11 @@ struct PhotosView: View {
         }
         lastAnchor[key] = m.id
     }
-    private let maxGroupsShown = 60   // tope de render: evita desbordar SwiftUI
+    let maxGroupsShown = 60   // tope de render: evita desbordar SwiftUI
 
     /// `asc` invierte el criterio natural de cada columna (tamaño y fecha
     /// empiezan de mayor a menor; el nombre, alfabético).
-    private func sorted(_ list: [PhotoAsset], by key: MediaSort, asc: Bool) -> [PhotoAsset] {
+    func sorted(_ list: [PhotoAsset], by key: MediaSort, asc: Bool) -> [PhotoAsset] {
         let out: [PhotoAsset]
         switch key {
         case .size: out = list.sorted { $0.fileSize > $1.fileSize }
@@ -68,7 +68,7 @@ struct PhotosView: View {
         return asc ? out.reversed() : out
     }
 
-    private func sortPicker(_ sel: Binding<MediaSort>, _ asc: Binding<Bool>) -> some View {
+    func sortPicker(_ sel: Binding<MediaSort>, _ asc: Binding<Bool>) -> some View {
         HStack(spacing: 6) {
             Text("sort:").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             sortButton(t("[size]"), .size, sel, asc)
@@ -96,7 +96,7 @@ struct PhotosView: View {
         .accessibilityValue(active ? (asc.wrappedValue ? t("ascending") : t("descending")) : "")
     }
 
-    private func moreBar(total: Int, limit: Binding<Int>, base: Int = 50) -> some View {
+    func moreBar(total: Int, limit: Binding<Int>, base: Int = 50) -> some View {
         HStack(spacing: 10) {
             Text(String(format: t("showing %d of %d"), min(limit.wrappedValue, total), total))
                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
@@ -143,21 +143,22 @@ struct PhotosView: View {
         .accessibilityAddTraits(tab == value ? .isSelected : [])
     }
 
-    private var rawTitle: String {
+    var rawTitle: String {
         var s = String(format: t("RAW PHOTOS — %d"), model.rawPhotos.count)
         let n = model.selectedRaws.count
         if n > 0 { s += " · \(n) ✓" }
         return s
     }
 
-    private var videosTitle: String {
+    var videosTitle: String {
         var s = String(format: t("BIG VIDEOS (>100 MB) — %d optimizable"), optimizableVideos.count)
         let n = model.selectedVideos.count
         if n > 0 { s += " · \(n) ✓" }
         return s
     }
 
-    @State private var navCursor: String?   // fila bajo el cursor de teclado
+    @State var showHEVC = false
+    @State var navCursor: String?   // fila bajo el cursor de teclado
 
     /// Lista sobre la que actúa el teclado según la pestaña visible.
     private func keyboardList() -> [PhotoAsset] {
@@ -323,7 +324,7 @@ struct PhotosView: View {
     @AppStorage("photos.groupSortAsc") private var groupSortAsc = false
     private var groupSort: GroupSort { GroupSort(rawValue: groupSortRaw) ?? .saving }
 
-    private var filteredGroups: [DupeGroup] {
+    var filteredGroups: [DupeGroup] {
         let base = dupeFilter.map { f in model.groups.filter { $0.tier == f } } ?? model.groups
         let out: [DupeGroup]
         switch groupSort {
@@ -337,11 +338,11 @@ struct PhotosView: View {
         return groupSortAsc ? out.reversed() : out
     }
 
-    private var visibleSaving: Int64 {
+    var visibleSaving: Int64 {
         filteredGroups.map(\.potentialSaving).reduce(0, +)
     }
 
-    private func groupSortChip(_ label: String, _ value: GroupSort) -> some View {
+    func groupSortChip(_ label: String, _ value: GroupSort) -> some View {
         let active = groupSort == value
         return Button {
             if active { groupSortAsc.toggle() } else { groupSortRaw = value.rawValue; groupSortAsc = false }
@@ -357,11 +358,11 @@ struct PhotosView: View {
         .accessibilityValue(active ? (groupSortAsc ? t("ascending") : t("descending")) : "")
     }
 
-    private func tierCount(_ tier: DupeTier) -> Int {
+    func tierCount(_ tier: DupeTier) -> Int {
         model.groups.filter { $0.tier == tier }.count
     }
 
-    private func tierChip(_ label: String, _ tier: DupeTier?, count: Int) -> some View {
+    func tierChip(_ label: String, _ tier: DupeTier?, count: Int) -> some View {
         Button { dupeFilter = tier } label: {
             Text("\(label) (\(count))")
                 .font(Theme.mono(10, dupeFilter == tier ? .bold : .regular))
@@ -373,234 +374,6 @@ struct PhotosView: View {
         }
         .buttonStyle(NeonClick())
         .accessibilityAddTraits(dupeFilter == tier ? .isSelected : [])
-    }
-
-    private var dupesSection: some View {
-        TerminalPanel(title: String(format: t("DUPLICATES & SIMILAR — %d groups"), model.groups.count), id: "photos.dupes") {
-            if model.groups.isEmpty && !model.scanning {
-                Text(t("no groups detected (or not analyzed yet)"))
-                    .font(Theme.small).foregroundStyle(Theme.grayDark)
-            } else {
-                HStack(spacing: 6) {
-                    tierChip(t("all"), nil, count: model.groups.count)
-                    tierChip(t("DUPLICATES"), .exact, count: tierCount(.exact))
-                    tierChip(t("NEAR-DUPLICATES"), .near, count: tierCount(.near))
-                    tierChip(t("SIMILAR"), .similar, count: tierCount(.similar))
-                    Spacer()
-                    let bulkTier = dupeFilter ?? .exact
-                    Button { model.selectAll(tier: bulkTier) } label: {
-                        Text(String(format: t("[ MARK ALL: %@ ]"), tierName(bulkTier)))
-                            .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neon)
-                            .padding(.vertical, 3).padding(.horizontal, 6)
-                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
-                    }
-                    .buttonStyle(NeonClick())
-                    .help(t("Marks every group of this tier except the best of each"))
-                }
-                similaritySlider
-                HStack(spacing: 6) {
-                    Text("sort:").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-                    groupSortChip(t("[saving]"), .saving)
-                    groupSortChip(t("[photos]"), .count)
-                    groupSortChip(t("[date]"), .date)
-                    Spacer()
-                    Text(String(format: t("potential saving here: %@"), formatBytes(visibleSaving)))
-                        .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
-                        .shadow(color: Theme.neon.opacity(0.4), radius: 4)
-                }
-                Text(t("nothing is pre-checked — you decide // BEST = GPS > oldest real date > resolution > size; tap ☆ to choose another"))
-                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-            }
-            LazyVStack(alignment: .leading, spacing: 10) {
-                ForEach(filteredGroups.prefix(maxGroupsShown)) { g in
-                    groupRow(g)
-                }
-            }
-            if filteredGroups.count > maxGroupsShown {
-                Text(String(format: t("… and %d more groups — clean these first and re-analyze"),
-                            filteredGroups.count - maxGroupsShown))
-                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-            }
-        }
-    }
-
-    /// Slider de similitud: re-agrupa al instante (las distancias ya están
-    /// calculadas, no hay que volver a analizar).
-    private var similaritySlider: some View {
-        HStack(spacing: 10) {
-            Text(t("similarity:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-            Text(t("strict")).font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
-            Slider(value: Binding(
-                get: { Double(model.similarity) },
-                set: { model.setSimilarity(Float($0)) }
-            ), in: 0.10...Double(PhotosModel.similarThreshold))
-            .frame(maxWidth: 260)
-            .tint(Theme.neon)
-            .accessibilityLabel(t("similarity:"))
-            .accessibilityValue(String(format: "%.2f", model.similarity))
-            Text(t("loose")).font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
-            Text(String(format: "%.2f", model.similarity))
-                .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
-                .frame(width: 40, alignment: .trailing)
-            Spacer()
-        }
-    }
-
-    private func groupRow(_ g: DupeGroup) -> some View {
-        let markedInGroup = g.members.filter { model.selected.contains($0.id) }
-        let bestMarked = model.selected.contains(g.bestID)
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                tierTag(g.tier)
-                Text(String(format: t("%d photos // %@"), g.members.count, formatBytes(g.totalSize)))
-                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-                Text("↓ " + formatBytes(g.potentialSaving))
-                    .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
-                    .help(t("Frees this much if you delete everything but the BEST"))
-                Spacer()
-                Button { model.selectAllButBest(g) } label: {
-                    Text(t("[ ALL BUT BEST ]"))
-                        .font(Theme.mono(9, .bold)).foregroundStyle(Theme.neonDim)
-                }
-                .buttonStyle(NeonClick())
-                .help(t("Marks the whole group except the best — you can unmark any to keep more"))
-                if !markedInGroup.isEmpty {
-                    if bestMarked {
-                        Text(t("★ marked!")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
-                            .help(t("The BEST of this group is marked for deletion too"))
-                    }
-                    Button { model.delete(ids: Set(markedInGroup.map(\.id))) } label: {
-                        Text(String(format: t("[ DELETE (%d) ]"), markedInGroup.count))
-                            .font(Theme.mono(10, .bold)).foregroundStyle(Theme.amber)
-                            .padding(.vertical, 5).padding(.horizontal, 8)
-                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.amber, lineWidth: 1))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(NeonClick())
-                    .disabled(model.optimizing)
-                    .help(t("Deletes only this group's marked photos (system asks to confirm)"))
-                }
-                Button { model.deleteWholeGroup(g) } label: {
-                    Text(t("[ DELETE WHOLE SET ]"))
-                        .font(Theme.mono(9, .bold)).foregroundStyle(Theme.grayDark)
-                }
-                .buttonStyle(NeonClick())
-                .disabled(model.optimizing)
-                .help(t("Deletes ALL photos in this set, INCLUDING the best (system asks to confirm)"))
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 6) {
-                    ForEach(g.members) { m in
-                        thumbCell(m, group: g)
-                    }
-                }
-            }
-            .frame(height: 132)
-        }
-    }
-
-    private func tierName(_ tier: DupeTier) -> String {
-        switch tier {
-        case .exact: return t("DUPLICATES")
-        case .near: return t("NEAR-DUPLICATES")
-        case .similar: return t("SIMILAR")
-        }
-    }
-
-    private func tierTag(_ tier: DupeTier) -> some View {
-        switch tier {
-        case .exact:
-            Text(t("DUPLICATES")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.neon)
-        case .near:
-            Text(t("NEAR-DUPLICATES")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
-        case .similar:
-            Text(t("SIMILAR")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.gray)
-        }
-    }
-
-    private static let timeF: DateFormatter = {
-        let d = DateFormatter(); d.dateFormat = "HH:mm:ss"; return d
-    }()
-
-    private func thumbCell(_ m: PhotoAsset, group g: DupeGroup) -> some View {
-        let isBest = m.id == g.bestID
-        let isSel = model.selected.contains(m.id)
-        let hasGPS = m.asset.location != nil
-        return VStack(spacing: 2) {
-            ZStack(alignment: .topLeading) {
-                AssetThumb(asset: m.asset)
-                    .frame(width: 92, height: 92)
-                    .clipped()
-                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(
-                        isSel ? Theme.neon : Theme.border, lineWidth: isSel ? 2 : 1))
-                if isBest {
-                    Text(t("BEST"))
-                        .font(Theme.mono(8, .bold)).foregroundStyle(Theme.bg)
-                        .padding(.horizontal, 3).padding(.vertical, 1)
-                        .background(Theme.neon)
-                } else {
-                    // ☆ arriba a la derecha: quedarse esta en lugar de la actual
-                    HStack {
-                        Spacer()
-                        Button { model.setBest(g, to: m.id) } label: {
-                            Text("☆").font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
-                                .padding(4).background(Theme.bg.opacity(0.7))
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(NeonClick())
-                        .help(t("Keep this one instead (becomes the BEST)"))
-                        .accessibilityLabel(t("Keep this one instead (becomes the BEST)"))
-                    }
-                }
-            }
-            .frame(width: 92)
-            Text(isSel ? t("[x] delete") : (isBest ? "★ " + t("kept") : "[ ] " + formatBytes(m.fileSize)))
-                .font(Theme.mono(10, isSel ? .bold : .regular))
-                .foregroundStyle(isSel ? Theme.amber : (isBest ? Theme.neonDim : Theme.grayDark))
-                .frame(width: 92, height: 20)
-                .contentShape(Rectangle())
-            // datos para decidir: resolución · GPS · hora
-            Text("\(m.asset.pixelWidth)×\(m.asset.pixelHeight)"
-                 + (hasGPS ? " 📍" : "")
-                 + (m.asset.creationDate.map { " " + Self.timeF.string(from: $0) } ?? ""))
-                .font(Theme.mono(8))
-                .foregroundStyle(hasGPS ? Theme.gray : Theme.grayDark)
-        }
-        .contentShape(Rectangle())
-        .highPriorityGesture(TapGesture(count: 2).onEnded {
-            preview = PreviewTarget(id: m.id, asset: m.asset)
-        })
-        .onTapGesture {
-            // La MEJOR también se puede marcar: a veces el set entero sobra
-            if isSel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
-        }
-        .help(cellHelp(m, isBest: isBest, hasGPS: hasGPS))
-        .accessibilityLabel(cellHelp(m, isBest: isBest, hasGPS: hasGPS))
-        .accessibilityValue(isBest ? t("kept") : (isSel ? t("marked") : t("not marked")))
-    }
-
-    private func cellHelp(_ m: PhotoAsset, isBest: Bool, hasGPS: Bool) -> String {
-        var parts: [String] = []
-        if let n = m.filename { parts.append(n) }
-        if let d = m.asset.creationDate {
-            parts.append(DateFormatter.localizedString(from: d, dateStyle: .medium, timeStyle: .medium))
-        }
-        parts.append("\(m.asset.pixelWidth)×\(m.asset.pixelHeight) · \(formatBytes(m.fileSize))")
-        parts.append(hasGPS ? t("has GPS location") : t("no GPS location"))
-        parts.append(isBest ? t("The best of the group is always kept — double-click to preview")
-                            : t("Click to mark, double-click to preview"))
-        return parts.joined(separator: "\n")
-    }
-
-    // MARK: Vídeos grandes → HEVC
-
-    @State private var showHEVC = false
-
-    private var optimizableVideos: [PhotoAsset] {
-        model.bigVideos.filter { model.codecByID[$0.id] != "HEVC ✓" }
-    }
-    private var hevcVideos: [PhotoAsset] {
-        model.bigVideos.filter { model.codecByID[$0.id] == "HEVC ✓" }
     }
 
     private var videosSection: some View {
@@ -668,7 +441,7 @@ struct PhotosView: View {
 
     // MARK: RAW → HEIC
 
-    private var shownRaws: [PhotoAsset] {
+    var shownRaws: [PhotoAsset] {
         Array(sorted(model.rawPhotos, by: rawSort, asc: rawAsc).prefix(rawLimit))
     }
 
@@ -721,7 +494,7 @@ struct PhotosView: View {
 
     // MARK: Componentes comunes
 
-    private func assetRow(_ m: PhotoAsset, in list: [PhotoAsset] = [], key: String = "",
+    func assetRow(_ m: PhotoAsset, in list: [PhotoAsset] = [], key: String = "",
                           optimizable: Bool = true) -> some View {
         let isOpt = model.optSelected.contains(m.id)
         return HStack(spacing: 8) {
@@ -800,7 +573,7 @@ struct PhotosView: View {
 
     @AppStorage("heic.quality") private var heicQuality = 0.9
 
-    private func qualityChip(_ label: String, _ value: Double) -> some View {
+    func qualityChip(_ label: String, _ value: Double) -> some View {
         Button { heicQuality = value } label: {
             Text("[\(label)]")
                 .font(Theme.mono(10, abs(heicQuality - value) < 0.001 ? .bold : .regular))
@@ -813,7 +586,7 @@ struct PhotosView: View {
         .accessibilityAddTraits(abs(heicQuality - value) < 0.001 ? .isSelected : [])
     }
 
-    private func profileChip(_ label: String, _ value: String) -> some View {
+    func profileChip(_ label: String, _ value: String) -> some View {
         Button { videoProfileRaw = value } label: {
             Text(label)
                 .font(Theme.mono(10, videoProfileRaw == value ? .bold : .regular))
@@ -825,7 +598,7 @@ struct PhotosView: View {
         .accessibilityAddTraits(videoProfileRaw == value ? .isSelected : [])
     }
 
-    private func optimizeButton(label: String, count: Int, action: @escaping () -> Void) -> some View {
+    func optimizeButton(label: String, count: Int, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(model.optimizing ? t("[ WORKING… ]") : "\(label) (\(count))")
                 .font(Theme.mono(12, .bold))
@@ -838,7 +611,7 @@ struct PhotosView: View {
         .disabled(count == 0 || model.optimizing)
     }
 
-    private static let df: DateFormatter = {
+    static let df: DateFormatter = {
         let d = DateFormatter(); d.dateFormat = "dd-MM-yyyy"; return d
     }()
 
