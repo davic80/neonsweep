@@ -3,6 +3,7 @@ import Photos
 
 enum MediaSort { case size, date, name }
 enum PhotoTab: String { case all, raw, videos, dupes }
+enum GroupSort: String { case saving, count, date }
 
 struct PhotosView: View {
     @ObservedObject var model: PhotosModel
@@ -305,8 +306,35 @@ struct PhotosView: View {
 
     // MARK: Duplicados / similares
 
+    @AppStorage("photos.groupSort") private var groupSortRaw = GroupSort.saving.rawValue
+    private var groupSort: GroupSort { GroupSort(rawValue: groupSortRaw) ?? .saving }
+
     private var filteredGroups: [DupeGroup] {
-        dupeFilter.map { f in model.groups.filter { $0.tier == f } } ?? model.groups
+        let base = dupeFilter.map { f in model.groups.filter { $0.tier == f } } ?? model.groups
+        switch groupSort {
+        case .saving: return base.sorted { $0.potentialSaving > $1.potentialSaving }
+        case .count:  return base.sorted { $0.members.count > $1.members.count }
+        case .date:   return base.sorted {
+            ($0.members.first?.asset.creationDate ?? .distantPast)
+                > ($1.members.first?.asset.creationDate ?? .distantPast)
+        }
+        }
+    }
+
+    private var visibleSaving: Int64 {
+        filteredGroups.map(\.potentialSaving).reduce(0, +)
+    }
+
+    private func groupSortChip(_ label: String, _ value: GroupSort) -> some View {
+        Button { groupSortRaw = value.rawValue } label: {
+            Text(label)
+                .font(Theme.mono(10, groupSort == value ? .bold : .regular))
+                .foregroundStyle(groupSort == value ? Theme.neon : Theme.grayDark)
+                .frame(minHeight: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NeonClick())
+        .accessibilityAddTraits(groupSort == value ? .isSelected : [])
     }
 
     private func tierCount(_ tier: DupeTier) -> Int {
@@ -350,6 +378,16 @@ struct PhotosView: View {
                     .help(t("Marks every group of this tier except the best of each"))
                 }
                 similaritySlider
+                HStack(spacing: 6) {
+                    Text("sort:").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    groupSortChip(t("[saving]"), .saving)
+                    groupSortChip(t("[photos]"), .count)
+                    groupSortChip(t("[date]"), .date)
+                    Spacer()
+                    Text(String(format: t("potential saving here: %@"), formatBytes(visibleSaving)))
+                        .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
+                        .shadow(color: Theme.neon.opacity(0.4), radius: 4)
+                }
                 Text(t("nothing is pre-checked — you decide // BEST = GPS > oldest real date > resolution > size; tap ☆ to choose another"))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             }
@@ -396,6 +434,9 @@ struct PhotosView: View {
                 tierTag(g.tier)
                 Text(String(format: t("%d photos // %@"), g.members.count, formatBytes(g.totalSize)))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                Text("↓ " + formatBytes(g.potentialSaving))
+                    .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
+                    .help(t("Frees this much if you delete everything but the BEST"))
                 Spacer()
                 Button { model.selectAllButBest(g) } label: {
                     Text(t("[ ALL BUT BEST ]"))

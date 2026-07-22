@@ -288,6 +288,10 @@
 "Marks every group of this tier except the best of each" = "Marca todos los grupos de este nivel menos la mejor de cada uno";
 "[ DELETE WHOLE SET ]" = "[ BORRAR SET ENTERO ]";
 "similarity:" = "similitud:";
+"[saving]" = "[ahorro]";
+"[photos]" = "[fotos]";
+"potential saving here: %@" = "ahorro potencial aquí: %@";
+"Frees this much if you delete everything but the BEST" = "Libera esto si borras todo menos la MEJOR";
 "strict" = "estricta";
 "loose" = "amplia";
 "★ marked!" = "¡★ marcada!";

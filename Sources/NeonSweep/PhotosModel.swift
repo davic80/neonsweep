@@ -46,6 +46,10 @@ struct DupeGroup: Identifiable {
     var tier: DupeTier
     var bestID: String        // el que conviene conservar (mayor resolución/tamaño)
     var totalSize: Int64 { members.map(\.fileSize).reduce(0, +) }
+    /// Lo que se liberaría borrando todo el grupo menos la MEJOR.
+    var potentialSaving: Int64 {
+        totalSize - (members.first { $0.id == bestID }?.fileSize ?? 0)
+    }
 }
 
 /// Par de fotos parecidas con su distancia visual. Guardar las aristas (y no
@@ -569,7 +573,7 @@ final class PhotosModel: ObservableObject {
                 ($0.asset.creationDate ?? .distantPast) < ($1.asset.creationDate ?? .distantPast)
             }, tier: tier, bestID: best.id)
         }
-        .sorted { $0.totalSize > $1.totalSize }
+        .sorted { $0.potentialSaving > $1.potentialSaving }
         pruneSelections()
     }
 
@@ -632,6 +636,11 @@ final class PhotosModel: ObservableObject {
     /// Marca todos los grupos de un nivel (menos la mejor de cada uno).
     func selectAll(tier: DupeTier) {
         for g in groups where g.tier == tier { selectAllButBest(g) }
+    }
+
+    /// Ahorro total si se borraran todos los grupos menos sus mejores.
+    var totalPotentialSaving: Int64 {
+        groups.map(\.potentialSaving).reduce(0, +)
     }
 
     private func performDelete(ids: Set<String>) {
