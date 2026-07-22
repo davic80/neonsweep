@@ -120,12 +120,24 @@ struct UninstallerView: View {
     }
 
     private func sortButton(_ label: String, _ key: AppSortKey) -> some View {
-        Button { model.sortKey = key } label: {
-            Text(label)
-                .font(Theme.mono(10, model.sortKey == key ? .bold : .regular))
-                .foregroundStyle(model.sortKey == key ? Theme.neon : Theme.grayDark)
+        let active = model.sortKey == key
+        return Button {
+            if active {
+                model.sortAsc.toggle()
+            } else {
+                model.sortKey = key
+                model.sortAsc = (key == .name)   // nombre A→Z; el resto, de mayor a menor
+            }
+        } label: {
+            Text(label + (active ? (model.sortAsc ? " ↑" : " ↓") : ""))
+                .font(Theme.mono(10, active ? .bold : .regular))
+                .foregroundStyle(active ? Theme.neon : Theme.grayDark)
+                .frame(minHeight: 22)
+                .contentShape(Rectangle())
         }
         .buttonStyle(NeonClick())
+        .accessibilityAddTraits(active ? .isSelected : [])
+        .accessibilityValue(active ? (model.sortAsc ? t("ascending") : t("descending")) : "")
     }
 
     // MARK: Detalle de restos

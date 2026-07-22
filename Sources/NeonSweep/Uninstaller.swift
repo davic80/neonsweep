@@ -51,6 +51,7 @@ final class UninstallerModel: ObservableObject {
     @Published var apps: [InstalledApp] = []
     @Published var search = ""
     @Published var sortKey: AppSortKey = .name
+    @Published var sortAsc = true   // el nombre arranca A→Z
     @Published var selectedApp: InstalledApp?
     @Published var leftovers: [LeftoverFile] = []
     @Published var checked: Set<UUID> = []
@@ -67,18 +68,22 @@ final class UninstallerModel: ObservableObject {
         if !search.isEmpty {
             list = list.filter { $0.name.localizedCaseInsensitiveContains(search) }
         }
+        let out: [InstalledApp]
         switch sortKey {
         case .name:
-            return list
+            out = list   // ya viene alfabético del escaneo
         case .size:
-            return list.sorted { $0.totalSize > $1.totalSize }
+            out = list.sorted { $0.totalSize > $1.totalSize }
         case .running:
-            return list.sorted {
+            out = list.sorted {
                 if $0.isRunning != $1.isRunning { return $0.isRunning }
                 if $0.hasLoginItem != $1.hasLoginItem { return $0.hasLoginItem }
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
         }
+        // nombre: asc = A→Z (natural); tamaño/activas: asc = invertir
+        let naturalAsc = sortKey == .name
+        return sortAsc == naturalAsc ? out : out.reversed()
     }
 
     var checkedSize: Int64 {

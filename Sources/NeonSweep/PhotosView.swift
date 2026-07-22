@@ -10,7 +10,9 @@ struct PhotosView: View {
     @State private var preview: PreviewTarget?
     @State private var videoOptions: PreviewTarget?
     @State private var rawSort: MediaSort = .size
+    @State private var rawAsc = false
     @State private var videoSort: MediaSort = .size
+    @State private var videoAsc = false
     @State private var dupeFilter: DupeTier?   // nil = todos los niveles
     @AppStorage("photos.tab") private var tabRaw = PhotoTab.all.rawValue
     @AppStorage("photos.videoProfile") private var videoProfileRaw = "optimal"
@@ -50,37 +52,48 @@ struct PhotosView: View {
     }
     private let maxGroupsShown = 60   // tope de render: evita desbordar SwiftUI
 
-    private func sorted(_ list: [PhotoAsset], by key: MediaSort) -> [PhotoAsset] {
+    /// `asc` invierte el criterio natural de cada columna (tamaño y fecha
+    /// empiezan de mayor a menor; el nombre, alfabético).
+    private func sorted(_ list: [PhotoAsset], by key: MediaSort, asc: Bool) -> [PhotoAsset] {
+        let out: [PhotoAsset]
         switch key {
-        case .size: return list.sorted { $0.fileSize > $1.fileSize }
-        case .date: return list.sorted {
+        case .size: out = list.sorted { $0.fileSize > $1.fileSize }
+        case .date: out = list.sorted {
             ($0.asset.creationDate ?? .distantPast) > ($1.asset.creationDate ?? .distantPast)
         }
-        case .name: return list.sorted {
+        case .name: out = list.sorted {
             ($0.filename ?? "").localizedCaseInsensitiveCompare($1.filename ?? "") == .orderedAscending
         }
         }
+        return asc ? out.reversed() : out
     }
 
-    private func sortPicker(_ sel: Binding<MediaSort>) -> some View {
+    private func sortPicker(_ sel: Binding<MediaSort>, _ asc: Binding<Bool>) -> some View {
         HStack(spacing: 6) {
             Text("sort:").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-            sortButton(t("[size]"), .size, sel)
-            sortButton(t("[date]"), .date, sel)
-            sortButton(t("[name]"), .name, sel)
+            sortButton(t("[size]"), .size, sel, asc)
+            sortButton(t("[date]"), .date, sel, asc)
+            sortButton(t("[name]"), .name, sel, asc)
         }
     }
 
-    private func sortButton(_ label: String, _ key: MediaSort, _ sel: Binding<MediaSort>) -> some View {
-        Button { sel.wrappedValue = key } label: {
-            Text(label)
-                .font(Theme.mono(10, sel.wrappedValue == key ? .bold : .regular))
-                .foregroundStyle(sel.wrappedValue == key ? Theme.neon : Theme.grayDark)
+    /// Clic en otra columna: la activa con su orden natural.
+    /// Clic en la activa: invierte la dirección.
+    private func sortButton(_ label: String, _ key: MediaSort,
+                            _ sel: Binding<MediaSort>, _ asc: Binding<Bool>) -> some View {
+        let active = sel.wrappedValue == key
+        return Button {
+            if active { asc.wrappedValue.toggle() } else { sel.wrappedValue = key; asc.wrappedValue = false }
+        } label: {
+            Text(label + (active ? (asc.wrappedValue ? " ↑" : " ↓") : ""))
+                .font(Theme.mono(10, active ? .bold : .regular))
+                .foregroundStyle(active ? Theme.neon : Theme.grayDark)
                 .frame(minHeight: 22)
                 .contentShape(Rectangle())
         }
         .buttonStyle(NeonClick())
-        .accessibilityAddTraits(sel.wrappedValue == key ? .isSelected : [])
+        .accessibilityAddTraits(active ? .isSelected : [])
+        .accessibilityValue(active ? (asc.wrappedValue ? t("ascending") : t("descending")) : "")
     }
 
     private func moreBar(total: Int, limit: Binding<Int>, base: Int = 50) -> some View {
@@ -149,7 +162,7 @@ struct PhotosView: View {
     /// Lista sobre la que actúa el teclado según la pestaña visible.
     private func keyboardList() -> [PhotoAsset] {
         switch tab {
-        case .videos: return Array(sorted(optimizableVideos, by: videoSort).prefix(videoLimit))
+        case .videos: return Array(sorted(optimizableVideos, by: videoSort, asc: videoAsc).prefix(videoLimit))
         default:      return shownRaws
         }
     }
@@ -307,18 +320,21 @@ struct PhotosView: View {
     // MARK: Duplicados / similares
 
     @AppStorage("photos.groupSort") private var groupSortRaw = GroupSort.saving.rawValue
+    @AppStorage("photos.groupSortAsc") private var groupSortAsc = false
     private var groupSort: GroupSort { GroupSort(rawValue: groupSortRaw) ?? .saving }
 
     private var filteredGroups: [DupeGroup] {
         let base = dupeFilter.map { f in model.groups.filter { $0.tier == f } } ?? model.groups
+        let out: [DupeGroup]
         switch groupSort {
-        case .saving: return base.sorted { $0.potentialSaving > $1.potentialSaving }
-        case .count:  return base.sorted { $0.members.count > $1.members.count }
-        case .date:   return base.sorted {
+        case .saving: out = base.sorted { $0.potentialSaving > $1.potentialSaving }
+        case .count:  out = base.sorted { $0.members.count > $1.members.count }
+        case .date:   out = base.sorted {
             ($0.members.first?.asset.creationDate ?? .distantPast)
                 > ($1.members.first?.asset.creationDate ?? .distantPast)
         }
         }
+        return groupSortAsc ? out.reversed() : out
     }
 
     private var visibleSaving: Int64 {
@@ -326,15 +342,19 @@ struct PhotosView: View {
     }
 
     private func groupSortChip(_ label: String, _ value: GroupSort) -> some View {
-        Button { groupSortRaw = value.rawValue } label: {
-            Text(label)
-                .font(Theme.mono(10, groupSort == value ? .bold : .regular))
-                .foregroundStyle(groupSort == value ? Theme.neon : Theme.grayDark)
+        let active = groupSort == value
+        return Button {
+            if active { groupSortAsc.toggle() } else { groupSortRaw = value.rawValue; groupSortAsc = false }
+        } label: {
+            Text(label + (active ? (groupSortAsc ? " ↑" : " ↓") : ""))
+                .font(Theme.mono(10, active ? .bold : .regular))
+                .foregroundStyle(active ? Theme.neon : Theme.grayDark)
                 .frame(minHeight: 22)
                 .contentShape(Rectangle())
         }
         .buttonStyle(NeonClick())
-        .accessibilityAddTraits(groupSort == value ? .isSelected : [])
+        .accessibilityAddTraits(active ? .isSelected : [])
+        .accessibilityValue(active ? (groupSortAsc ? t("ascending") : t("descending")) : "")
     }
 
     private func tierCount(_ tier: DupeTier) -> Int {
@@ -606,9 +626,9 @@ struct PhotosView: View {
                     Text(t("everything already in HEVC ✓"))
                         .font(Theme.body).foregroundStyle(Theme.neonDim)
                 } else {
-                    sortPicker($videoSort)
+                    sortPicker($videoSort, $videoAsc)
                 }
-                let shownVideos = Array(sorted(optimizableVideos, by: videoSort).prefix(videoLimit))
+                let shownVideos = Array(sorted(optimizableVideos, by: videoSort, asc: videoAsc).prefix(videoLimit))
                 LazyVStack(alignment: .leading, spacing: 3) {
                     ForEach(shownVideos) { m in
                         assetRow(m, in: shownVideos, key: "video")
@@ -632,7 +652,7 @@ struct PhotosView: View {
                     }
                     .buttonStyle(NeonClick())
                     if showHEVC {
-                        let hevcShown = Array(sorted(hevcVideos, by: videoSort).prefix(videoLimit))
+                        let hevcShown = Array(sorted(hevcVideos, by: videoSort, asc: videoAsc).prefix(videoLimit))
                         LazyVStack(alignment: .leading, spacing: 3) {
                             ForEach(hevcShown) { m in
                                 // Con perfil MÁXIMA los HEVC sí son optimizables (reescala)
@@ -649,7 +669,7 @@ struct PhotosView: View {
     // MARK: RAW → HEIC
 
     private var shownRaws: [PhotoAsset] {
-        Array(sorted(model.rawPhotos, by: rawSort).prefix(rawLimit))
+        Array(sorted(model.rawPhotos, by: rawSort, asc: rawAsc).prefix(rawLimit))
     }
 
     private var rawSection: some View {
@@ -667,7 +687,7 @@ struct PhotosView: View {
                     ) { model.convertSelectedRaws() }
                 }
                 HStack {
-                    sortPicker($rawSort)
+                    sortPicker($rawSort, $rawAsc)
                     Text(t("// Shift-click = range · ↑↓ move · space mark · ↵ preview"))
                         .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     Spacer()
