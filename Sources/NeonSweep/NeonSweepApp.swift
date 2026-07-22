@@ -234,7 +234,7 @@ struct RootView: View {
         .padding(20)
         // El ancho acompaña al tamaño de texto: con [A+] las secciones no se
         // cortan ni se parten en dos líneas
-        .frame(width: 236 * Theme.scaleFactor, alignment: .leading)
+        .frame(width: 240 * Theme.scaleFactor, alignment: .leading)
         .background(Theme.bg)
     }
 
