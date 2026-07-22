@@ -8,10 +8,23 @@ import CryptoKit
     // MARK: prefijo de fabricante (huérfanos)
 
     @Test func vendorPrefix() {
-        #expect(UninstallerModel.vendorPrefix("com.spotify.client") == "com.spotify")
-        #expect(UninstallerModel.vendorPrefix("group.com.spotify.client") == "com.spotify")
-        #expect(UninstallerModel.vendorPrefix("COM.Microsoft.Word") == "com.microsoft")
+        #expect(UninstallerModel.vendorPrefix("com.spotify.client") == "com.spotify.client")
+        #expect(UninstallerModel.vendorPrefix("group.com.spotify.client") == "com.spotify.client")
+        #expect(UninstallerModel.vendorPrefix("COM.Microsoft.Word") == "com.microsoft.word")
         #expect(UninstallerModel.vendorPrefix("org.mozilla") == "org.mozilla")
+    }
+
+    /// Caso real: CleanMyMac desinstalado, The Unarchiver (mismo fabricante)
+    /// sigue instalado. Sus restos deben distinguirse.
+    @Test func orphanKeySeparatesAppsOfSameVendor() {
+        let cleanMyMac = UninstallerModel.vendorPrefix("com.macpaw.CleanMyMac5")
+        let cmmOldVersion = UninstallerModel.vendorPrefix("S8EX82NJP6.com.macpaw.CleanMyMac4")
+        let unarchiver = UninstallerModel.vendorPrefix("com.macpaw.site.theunarchiver")
+
+        #expect(cleanMyMac == "com.macpaw.cleanmymac")
+        #expect(cmmOldVersion == cleanMyMac, "el Team ID y la versión no deben separar restos")
+        #expect(unarchiver != cleanMyMac,
+                "una app instalada del mismo fabricante no puede blindar los restos de otra")
     }
 
     // MARK: familia de bundle ID (caso CleanMyMac: restos de v4 al borrar v5)

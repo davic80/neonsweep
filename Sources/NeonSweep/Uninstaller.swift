@@ -302,11 +302,27 @@ final class UninstallerModel: ObservableObject {
         }
     }
 
-    /// "group.com.spotify.client" → "com.spotify"
+    /// Clave de app para huérfanos: tres componentes, sin prefijos de grupo o
+    /// Team ID y sin sufijo de versión.
+    ///   "group.com.spotify.client"          → "com.spotify.client"
+    ///   "S8EX82NJP6.com.macpaw.CleanMyMac4" → "com.macpaw.cleanmymac"
+    ///   "com.macpaw.site.theunarchiver"     → "com.macpaw.site"
+    /// Comparar por app (no por fabricante) permite detectar restos de una app
+    /// borrada aunque el fabricante siga teniendo otras instaladas.
     nonisolated static func vendorPrefix(_ bid: String) -> String {
-        var parts = bid.lowercased().split(separator: ".")
+        var parts = bid.lowercased().split(separator: ".").map(String.init)
         if parts.first == "group" { parts.removeFirst() }
-        return parts.prefix(2).joined(separator: ".")
+        // Team ID de Apple: 10 caracteres alfanuméricos sin puntos
+        if let first = parts.first, first.count == 10,
+           first.allSatisfy({ $0.isLetter || $0.isNumber }), first.contains(where: \.isNumber) {
+            parts.removeFirst()
+        }
+        var key = Array(parts.prefix(3))
+        if var last = key.last {
+            while let c = last.last, c.isNumber { last.removeLast() }
+            if !last.isEmpty { key[key.count - 1] = last }
+        }
+        return key.joined(separator: ".")
     }
 
     nonisolated static func findOrphans(installedPrefixes: Set<String>) -> [OrphanEntry] {
