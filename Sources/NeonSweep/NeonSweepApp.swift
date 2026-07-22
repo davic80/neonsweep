@@ -175,42 +175,57 @@ struct RootView: View {
                 .accessibilityHidden(true)
             Spacer()
             freedCounter
-            HStack {
+            // Cada ajuste en su fila: con texto grande no se empujan entre sí
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(t("text")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    Spacer(minLength: 0)
+                    Button { ui.bump(-0.1) } label: {
+                        Text("[A-]").font(Theme.mono(11, .bold)).foregroundStyle(Theme.neonDim)
+                            .frame(minWidth: 34, minHeight: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                    .accessibilityLabel(t("Text size") + " −")
+                    Button { ui.bump(0.1) } label: {
+                        Text("[A+]").font(Theme.mono(11, .bold)).foregroundStyle(Theme.neonDim)
+                            .frame(minWidth: 34, minHeight: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                    .accessibilityLabel(t("Text size") + " +")
+                }
+                HStack(spacing: 8) {
+                    Text(t("sound")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    Spacer(minLength: 0)
+                    Button { sfx.muted.toggle() } label: {
+                        Text(sfx.muted ? "[ off ]" : "[ on ]")
+                            .font(Theme.mono(11, .bold))
+                            .foregroundStyle(sfx.muted ? Theme.grayDark : Theme.neonDim)
+                            .frame(minWidth: 52, minHeight: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                    .accessibilityLabel(t("Sound on/off"))
+                    .accessibilityValue(sfx.muted ? "off" : "on")
+                }
+                HStack(spacing: 8) {
+                    Text(t("lang")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    Spacer(minLength: 0)
+                    Button { lang.toggle() } label: {
+                        Text(lang.code == "es" ? "[ES|en]" : "[es|EN]")
+                            .font(Theme.mono(11, .bold))
+                            .foregroundStyle(Theme.neonDim)
+                            .frame(minWidth: 52, minHeight: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                    .help("Español / English")
+                }
                 Text(t("// no telemetry\n// nothing deleted without asking"))
                     .font(Theme.mono(9))
                     .foregroundStyle(Theme.grayDark)
-                Spacer()
-                Button { ui.bump(-0.1) } label: {
-                    Text("[A-]").font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(NeonClick())
-                .help(t("Text size"))
-                .accessibilityLabel(t("Text size") + " −")
-                Button { ui.bump(0.1) } label: {
-                    Text("[A+]").font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(NeonClick())
-                .help(t("Text size"))
-                .accessibilityLabel(t("Text size") + " +")
-                Button { sfx.muted.toggle() } label: {
-                    Text(sfx.muted ? "[×♪]" : "[♪]")
-                        .font(Theme.mono(10, .bold))
-                        .foregroundStyle(sfx.muted ? Theme.grayDark : Theme.neonDim)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(NeonClick())
-                .help(t("Sound on/off"))
-                .accessibilityLabel(t("Sound on/off"))
-                .accessibilityValue(sfx.muted ? "off" : "on")
-                Button { lang.toggle() } label: {
-                    Text(lang.code == "es" ? "[ES|en]" : "[es|EN]")
-                        .font(Theme.mono(10, .bold))
-                        .foregroundStyle(Theme.neonDim)
-                }
-                .buttonStyle(NeonClick())
-                .help("Español / English")
+                    .padding(.top, 4)
             }
             .padding(.top, 10)
         }

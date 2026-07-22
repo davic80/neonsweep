@@ -349,6 +349,7 @@ struct PhotosView: View {
                     .buttonStyle(NeonClick())
                     .help(t("Marks every group of this tier except the best of each"))
                 }
+                similaritySlider
                 Text(t("nothing is pre-checked — you decide // BEST = GPS > oldest real date > resolution > size; tap ☆ to choose another"))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             }
@@ -365,8 +366,31 @@ struct PhotosView: View {
         }
     }
 
+    /// Slider de similitud: re-agrupa al instante (las distancias ya están
+    /// calculadas, no hay que volver a analizar).
+    private var similaritySlider: some View {
+        HStack(spacing: 10) {
+            Text(t("similarity:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            Text(t("strict")).font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+            Slider(value: Binding(
+                get: { Double(model.similarity) },
+                set: { model.setSimilarity(Float($0)) }
+            ), in: 0.10...Double(PhotosModel.similarThreshold))
+            .frame(maxWidth: 260)
+            .tint(Theme.neon)
+            .accessibilityLabel(t("similarity:"))
+            .accessibilityValue(String(format: "%.2f", model.similarity))
+            Text(t("loose")).font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+            Text(String(format: "%.2f", model.similarity))
+                .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
+                .frame(width: 40, alignment: .trailing)
+            Spacer()
+        }
+    }
+
     private func groupRow(_ g: DupeGroup) -> some View {
-        let markedInGroup = g.members.filter { model.selected.contains($0.id) && $0.id != g.bestID }
+        let markedInGroup = g.members.filter { model.selected.contains($0.id) }
+        let bestMarked = model.selected.contains(g.bestID)
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 tierTag(g.tier)
@@ -380,11 +404,16 @@ struct PhotosView: View {
                 .buttonStyle(NeonClick())
                 .help(t("Marks the whole group except the best — you can unmark any to keep more"))
                 if !markedInGroup.isEmpty {
+                    if bestMarked {
+                        Text(t("★ marked!")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
+                            .help(t("The BEST of this group is marked for deletion too"))
+                    }
                     Button { model.delete(ids: Set(markedInGroup.map(\.id))) } label: {
                         Text(String(format: t("[ DELETE (%d) ]"), markedInGroup.count))
-                            .font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
-                            .padding(.vertical, 2).padding(.horizontal, 5)
+                            .font(Theme.mono(10, .bold)).foregroundStyle(Theme.amber)
+                            .padding(.vertical, 5).padding(.horizontal, 8)
                             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.amber, lineWidth: 1))
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(NeonClick())
                     .disabled(model.optimizing)
@@ -464,9 +493,11 @@ struct PhotosView: View {
                 }
             }
             .frame(width: 92)
-            Text(isBest ? "★ " + t("kept") : (isSel ? t("[x] delete") : "[ ] " + formatBytes(m.fileSize)))
-                .font(Theme.mono(9))
-                .foregroundStyle(isBest ? Theme.neonDim : (isSel ? Theme.neon : Theme.grayDark))
+            Text(isSel ? t("[x] delete") : (isBest ? "★ " + t("kept") : "[ ] " + formatBytes(m.fileSize)))
+                .font(Theme.mono(10, isSel ? .bold : .regular))
+                .foregroundStyle(isSel ? Theme.amber : (isBest ? Theme.neonDim : Theme.grayDark))
+                .frame(width: 92, height: 20)
+                .contentShape(Rectangle())
             // datos para decidir: resolución · GPS · hora
             Text("\(m.asset.pixelWidth)×\(m.asset.pixelHeight)"
                  + (hasGPS ? " 📍" : "")
@@ -474,11 +505,12 @@ struct PhotosView: View {
                 .font(Theme.mono(8))
                 .foregroundStyle(hasGPS ? Theme.gray : Theme.grayDark)
         }
+        .contentShape(Rectangle())
         .highPriorityGesture(TapGesture(count: 2).onEnded {
             preview = PreviewTarget(id: m.id, asset: m.asset)
         })
         .onTapGesture {
-            guard !isBest else { return }   // la mejor no se puede marcar
+            // La MEJOR también se puede marcar: a veces el set entero sobra
             if isSel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
         }
         .help(cellHelp(m, isBest: isBest, hasGPS: hasGPS))

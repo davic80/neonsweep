@@ -252,6 +252,9 @@
 "marked" = "marcado";
 "not marked" = "sin marcar";
 "Text size" = "Tamaño del texto";
+"text" = "texto";
+"sound" = "sonido";
+"lang" = "idioma";
 "Toggle performance profiling (writes to ~/Library/Logs/NeonSweep.log)" = "Activa el perfilado de rendimiento (escribe en ~/Library/Logs/NeonSweep.log)";
 "// HEVC ✓ = no gain · DUPE? = probable twin · click the name for conversion profiles" = "// HEVC ✓ = sin ganancia · ¿DUPE? = posible gemelo · clic en el nombre = perfiles de conversión";
 "// Shift-click = range · ↑↓ move · space mark · ↵ preview" = "// Shift+clic = rango · ↑↓ mover · espacio marca · ↵ vista previa";
@@ -284,6 +287,11 @@
 "[ MARK ALL: %@ ]" = "[ MARCAR TODAS: %@ ]";
 "Marks every group of this tier except the best of each" = "Marca todos los grupos de este nivel menos la mejor de cada uno";
 "[ DELETE WHOLE SET ]" = "[ BORRAR SET ENTERO ]";
+"similarity:" = "similitud:";
+"strict" = "estricta";
+"loose" = "amplia";
+"★ marked!" = "¡★ marcada!";
+"The BEST of this group is marked for deletion too" = "La MEJOR de este grupo también está marcada para borrar";
 "Deletes ALL photos in this set, INCLUDING the best (system asks to confirm)" = "Borra TODAS las fotos de este set, INCLUIDA la mejor (el sistema pide confirmación)";
 "Sound on/off" = "Sonido sí/no";
 "Mark to optimize (Shift-click = range from last click)" = "Marcar para optimizar (Shift+clic = rango desde el último clic)";

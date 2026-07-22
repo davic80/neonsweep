@@ -48,6 +48,15 @@ struct DupeGroup: Identifiable {
     var totalSize: Int64 { members.map(\.fileSize).reduce(0, +) }
 }
 
+/// Par de fotos parecidas con su distancia visual. Guardar las aristas (y no
+/// solo los grupos) permite re-agrupar con otro umbral al instante, sin
+/// recalcular las huellas de Vision.
+struct DupeEdge: Codable {
+    let a: String
+    let b: String
+    let d: Float
+}
+
 // MARK: - Motor
 
 @MainActor
@@ -76,7 +85,19 @@ final class PhotosModel: ObservableObject {
     // Umbrales de distancia entre huellas visuales de Vision
     private static let exactThreshold: Float = 0.25    // duplicadas
     private static let nearThreshold: Float = 0.55     // casi duplicadas
-    private static let similarThreshold: Float = 0.80  // similares (une el grupo)
+    /// Máxima distancia que se guarda como arista; el slider no puede pasar de
+    /// aquí sin re-analizar.
+    nonisolated static let similarThreshold: Float = 0.80
+
+    /// Umbral activo del slider de similitud (persistido).
+    @Published var similarity: Float = {
+        let v = UserDefaults.standard.float(forKey: "photos.similarity")
+        return v > 0 ? v : PhotosModel.similarThreshold
+    }()
+
+    /// Aristas del análisis y fotos implicadas: base para re-agrupar al vuelo.
+    private var edges: [DupeEdge] = []
+    private var edgeAssets: [String: PhotoAsset] = [:]
     private static let windowSize = 8           // comparar con los N vecinos temporales
     private nonisolated static let bigVideoMinBytes: Int64 = 100_000_000
 
@@ -140,6 +161,8 @@ final class PhotosModel: ObservableObject {
         var imageMeta: [CAsset]?
         var analyzedUpTo: Double?
         var partial: Bool?
+        /// Aristas de similitud: permiten mover el slider sin re-analizar.
+        var edges: [DupeEdge]?
     }
 
     nonisolated static func loadCacheFile() -> Cache? {
@@ -159,7 +182,10 @@ final class PhotosModel: ObservableObject {
                            partial: Bool = false) {
         var seen = Set<String>()
         var assets: [Cache.CAsset] = []
-        for pa in groups.flatMap(\.members) + bigVideos + rawPhotos where seen.insert(pa.id).inserted {
+        // Guardar TODAS las fotos con aristas (no solo las agrupadas ahora):
+        // al mover el slider pueden entrar en juego las demás
+        for pa in Array(edgeAssets.values) + groups.flatMap(\.members) + bigVideos + rawPhotos
+        where seen.insert(pa.id).inserted {
             assets.append(Cache.CAsset(id: pa.id, size: pa.fileSize, raw: pa.isRaw, name: pa.filename))
         }
         // Conservar checkpoint previo cuando el llamante no aporta uno nuevo
@@ -177,7 +203,8 @@ final class PhotosModel: ObservableObject {
             dupeVideoIDs: Array(dupeVideoIDs),
             imageMeta: imageMeta ?? prev?.imageMeta,
             analyzedUpTo: analyzedUpTo ?? prev?.analyzedUpTo,
-            partial: imageMeta == nil ? (prev?.partial ?? false) : partial)
+            partial: imageMeta == nil ? (prev?.partial ?? false) : partial,
+            edges: edges)
         if let data = try? JSONEncoder().encode(cache) {
             try? data.write(to: Self.cacheURL)
         }
@@ -214,11 +241,21 @@ final class PhotosModel: ObservableObject {
             return PhotoAsset(id: id, asset: ph, fileSize: c.size, isRaw: c.raw, filename: c.name)
         }
 
-        groups = cache.groups.compactMap { g in
-            let members = g.members.compactMap(rebuild)
-            guard members.count >= 2, members.contains(where: { $0.id == g.best }) else { return nil }
-            let tier: DupeTier = g.tier == 0 ? .exact : g.tier == 1 ? .near : .similar
-            return DupeGroup(members: members, tier: tier, bestID: g.best)
+        // Con aristas guardadas se reconstruyen los grupos con el umbral actual
+        if let saved = cache.edges, !saved.isEmpty {
+            edges = saved
+            edgeAssets = [:]
+            for id in Set(saved.flatMap { [$0.a, $0.b] }) {
+                if let pa = rebuild(id) { edgeAssets[id] = pa }
+            }
+            rebuildGroups()
+        } else {
+            groups = cache.groups.compactMap { g in
+                let members = g.members.compactMap(rebuild)
+                guard members.count >= 2, members.contains(where: { $0.id == g.best }) else { return nil }
+                let tier: DupeTier = g.tier == 0 ? .exact : g.tier == 1 ? .near : .similar
+                return DupeGroup(members: members, tier: tier, bestID: g.best)
+            }
         }
         bigVideos = cache.videoIDs.compactMap(rebuild)
         rawPhotos = cache.rawIDs.compactMap(rebuild)
@@ -444,22 +481,9 @@ final class PhotosModel: ObservableObject {
                              seed: [DupeGroup] = [], skipUntil: Double? = nil,
                              onCheckpoint: ((_ groups: [DupeGroup], _ upTo: Date) -> Void)? = nil) async -> [DupeGroup] {
         let total = images.count
-        var result: [DupeGroup] = seed
-        let seededIDs = Set(seed.flatMap { $0.members.map(\.id) })
+        // Se conservan las aristas previas (checkpoint) y se añaden las nuevas
+        var newEdges: [DupeEdge] = seed.isEmpty ? [] : edges
         var window: [(PhotoAsset, VNFeaturePrintObservation)] = []
-        var current: [(PhotoAsset, VNFeaturePrintObservation)] = []
-        var currentWorst: Float = 0   // peor distancia interna del grupo
-
-        func closeGroup() {
-            if current.count >= 2 {
-                let members = current.map(\.0)
-                let best = members.max { Self.bestScore($0) < Self.bestScore($1) }!
-                let tier: DupeTier = currentWorst < Self.exactThreshold ? .exact
-                    : currentWorst < Self.nearThreshold ? .near : .similar
-                result.append(DupeGroup(members: members, tier: tier, bestID: best.id))
-            }
-            current = []; currentWorst = 0
-        }
 
         for (i, pa) in images.enumerated() {
             // Reanudación: saltar lo ya analizado en el checkpoint
@@ -467,46 +491,93 @@ final class PhotosModel: ObservableObject {
                let d = pa.asset.creationDate, d.timeIntervalSince1970 <= s {
                 continue
             }
-            _ = seededIDs   // los grupos sembrados ya cubren ese tramo
             if i % 25 == 0 {
                 progress = String(format: t("analyzing %d/%d…"), i, total)
                 fraction = baseFraction + Double(i) / Double(max(1, total)) * span
                 await Task.yield()
             }
             if i % 2500 == 0, i > 0, let cb = onCheckpoint, let d = pa.asset.creationDate {
-                cb(result, d)
+                edges = newEdges
+                rebuildGroups()
+                cb(groups, d)
             }
             guard let print = await Task.detached(priority: .userInitiated, operation: {
                 Self.featurePrint(for: pa.asset)
             }).value else { continue }
 
-            var joined = false
-            if let (_, lastPrint) = current.last {
+            // Comparar con los vecinos temporales: los duplicados y ráfagas
+            // están siempre juntos en el tiempo
+            for (prev, prevPrint) in window.suffix(Self.windowSize) {
                 var d: Float = .greatestFiniteMagnitude
-                try? print.computeDistance(&d, to: lastPrint)
+                try? print.computeDistance(&d, to: prevPrint)
                 if d < Self.similarThreshold {
-                    current.append((pa, print))
-                    currentWorst = max(currentWorst, d)
-                    joined = true
-                }
-            }
-            if !joined {
-                closeGroup()
-                for (prev, prevPrint) in window.suffix(Self.windowSize).reversed() {
-                    var d: Float = .greatestFiniteMagnitude
-                    try? print.computeDistance(&d, to: prevPrint)
-                    if d < Self.similarThreshold {
-                        current = [(prev, prevPrint), (pa, print)]
-                        currentWorst = d
-                        break
-                    }
+                    newEdges.append(DupeEdge(a: prev.id, b: pa.id, d: d))
+                    edgeAssets[prev.id] = prev
+                    edgeAssets[pa.id] = pa
                 }
             }
             window.append((pa, print))
             if window.count > Self.windowSize * 2 { window.removeFirst() }
         }
-        closeGroup()
-        return result
+        edges = newEdges
+        rebuildGroups()
+        return groups
+    }
+
+    /// Re-agrupa al instante con el umbral actual del slider (union-find sobre
+    /// las aristas ya calculadas — sin recalcular huellas).
+    func rebuildGroups() {
+        let limit = similarity
+        var parent: [String: String] = [:]
+        func find(_ x: String) -> String {
+            var r = x
+            while let p = parent[r], p != r { r = p }
+            var c = x
+            while let p = parent[c], p != r { parent[c] = r; c = p }
+            return r
+        }
+        func union(_ x: String, _ y: String) {
+            parent[x] = parent[x] ?? x
+            parent[y] = parent[y] ?? y
+            let rx = find(x), ry = find(y)
+            if rx != ry { parent[rx] = ry }
+        }
+
+        var worst: [String: Float] = [:]   // peor distancia dentro del grupo
+        for e in edges where e.d <= limit { union(e.a, e.b) }
+        for e in edges where e.d <= limit {
+            let root = find(e.a)
+            worst[root] = max(worst[root] ?? 0, e.d)
+        }
+
+        var buckets: [String: [PhotoAsset]] = [:]
+        for id in Set(edges.filter { $0.d <= limit }.flatMap { [$0.a, $0.b] }) {
+            guard let pa = edgeAssets[id] else { continue }
+            buckets[find(id), default: []].append(pa)
+        }
+
+        // Conservar las MEJOR elegidas a mano por el usuario
+        let manualBest = Set(groups.map(\.bestID))
+        groups = buckets.compactMap { root, members in
+            guard members.count >= 2 else { return nil }
+            let w = worst[root] ?? 0
+            let tier: DupeTier = w < Self.exactThreshold ? .exact
+                : w < Self.nearThreshold ? .near : .similar
+            let best = members.first { manualBest.contains($0.id) }
+                ?? members.max { Self.bestScore($0) < Self.bestScore($1) }!
+            return DupeGroup(members: members.sorted {
+                ($0.asset.creationDate ?? .distantPast) < ($1.asset.creationDate ?? .distantPast)
+            }, tier: tier, bestID: best.id)
+        }
+        .sorted { $0.totalSize > $1.totalSize }
+        pruneSelections()
+    }
+
+    /// Cambia el umbral del slider y re-agrupa (persistido).
+    func setSimilarity(_ v: Float) {
+        similarity = v
+        UserDefaults.standard.set(v, forKey: "photos.similarity")
+        rebuildGroups()
     }
 
     /// Criterio de "mejor": conserva GPS > la más antigua (con fecha real)
@@ -548,9 +619,8 @@ final class PhotosModel: ObservableObject {
 
     /// Borra un subconjunto concreto (p. ej. las marcadas de un solo grupo).
     func delete(ids requested: Set<String>) {
-        // Red de seguridad: la "mejor" de cada grupo jamás entra en el borrado
-        let bests = Set(groups.map(\.bestID))
-        performDelete(ids: requested.intersection(selected).subtracting(bests))
+        // La MEJOR también puede borrarse si el usuario la marca a propósito
+        performDelete(ids: requested.intersection(selected))
     }
 
     /// Borra TODO el grupo, incluida la MEJOR — decisión explícita del usuario

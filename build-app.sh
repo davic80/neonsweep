@@ -44,5 +44,14 @@ cat > "$APP/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-codesign --force -s - "$APP"
+# Firmar con la identidad local persistente si existe (scripts/setup-signing.sh):
+# mantiene estable el cdhash entre builds, así macOS no vuelve a pedir permisos
+# de disco/Fotos en cada compilación. Si no está, firma ad-hoc como antes.
+if security find-certificate -c "NeonSweep Dev" >/dev/null 2>&1; then
+    codesign --force -s "NeonSweep Dev" "$APP"
+    echo "firmado con identidad local 'NeonSweep Dev'"
+else
+    codesign --force -s - "$APP"
+    echo "firma ad-hoc (ejecuta scripts/setup-signing.sh para conservar permisos)"
+fi
 echo "OK -> $APP"
