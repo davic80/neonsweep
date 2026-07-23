@@ -34,9 +34,27 @@ final class UnusedAppsModel: ObservableObject {
     @Published var minMonths = 3          // filtro: meses sin abrir
     @Published var lastResult: String?
 
+    /// Criterio de orden (persistido). Por defecto tamaño: es lo que se busca
+    /// en un limpiador.
+    @Published var sortBySize = UserDefaults.standard.object(forKey: "unused.sortBySize") as? Bool ?? true
+    @Published var sortAsc = false
+
     var filtered: [UnusedApp] {
-        apps.filter { ($0.daysUnused ?? 9_999) >= minMonths * 30 }
-            .sorted { $0.score > $1.score }
+        let base = apps.filter { ($0.daysUnused ?? 9_999) >= minMonths * 30 }
+        let out = sortBySize
+            ? base.sorted { $0.size > $1.size }
+            : base.sorted { ($0.daysUnused ?? 0) > ($1.daysUnused ?? 0) }
+        return sortAsc ? out.reversed() : out
+    }
+
+    func setSort(bySize: Bool) {
+        if sortBySize == bySize {
+            sortAsc.toggle()
+        } else {
+            sortBySize = bySize
+            sortAsc = false
+            UserDefaults.standard.set(bySize, forKey: "unused.sortBySize")
+        }
     }
     var reclaimable: Int64 { filtered.map(\.size).reduce(0, +) }
 

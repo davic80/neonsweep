@@ -46,6 +46,12 @@ struct UnusedAppsView: View {
         TerminalPanel(title: t("APPS YOU DON'T USE"), id: "unused.summary") {
             Text(t("// last-opened date comes from Spotlight (same as Finder's \"Last opened\"). Sorted by how much you'd gain: size × time unused."))
                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            HStack(spacing: 6) {
+                Text("sort:").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                sortChip(t("[size]"), bySize: true)
+                sortChip(t("[unused time]"), bySize: false)
+                Spacer()
+            }
             HStack(spacing: 12) {
                 Text(t("unused for at least:")).font(Theme.body).foregroundStyle(Theme.gray)
                 ForEach([1, 3, 6, 12], id: \.self) { m in
@@ -68,6 +74,20 @@ struct UnusedAppsView: View {
                 }
             }
         }
+    }
+
+    private func sortChip(_ label: String, bySize: Bool) -> some View {
+        let active = model.sortBySize == bySize
+        return Button { model.setSort(bySize: bySize) } label: {
+            Text(label + (active ? (model.sortAsc ? " ↑" : " ↓") : ""))
+                .font(Theme.mono(10, active ? .bold : .regular))
+                .foregroundStyle(active ? Theme.neon : Theme.grayDark)
+                .frame(minHeight: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NeonClick())
+        .accessibilityAddTraits(active ? .isSelected : [])
+        .accessibilityValue(active ? (model.sortAsc ? t("ascending") : t("descending")) : "")
     }
 
     private var listPanel: some View {

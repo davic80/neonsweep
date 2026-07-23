@@ -50,8 +50,9 @@ struct LeftoverFile: Identifiable {
 final class UninstallerModel: ObservableObject {
     @Published var apps: [InstalledApp] = []
     @Published var search = ""
-    @Published var sortKey: AppSortKey = .name
-    @Published var sortAsc = true   // el nombre arranca A→Z
+    // Por defecto, tamaño de mayor a menor: es lo que se busca al limpiar
+    @Published var sortKey: AppSortKey = .size
+    @Published var sortAsc = false
     @Published var selectedApp: InstalledApp?
     @Published var leftovers: [LeftoverFile] = []
     @Published var checked: Set<UUID> = []
@@ -203,6 +204,11 @@ final class UninstallerModel: ObservableObject {
     }
 
     // MARK: Buscar restos de una app
+
+    /// Restos ordenados por tamaño (mayor primero): lo accionable arriba.
+    var sortedLeftovers: [LeftoverFile] {
+        leftovers.sorted { $0.size > $1.size }
+    }
 
     func inspect(_ app: InstalledApp) {
         showingOrphans = false

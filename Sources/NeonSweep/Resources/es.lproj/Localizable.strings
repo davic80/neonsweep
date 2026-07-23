@@ -351,3 +351,4 @@
 "WARN: deletion cancelled — converted files imported, originals kept (duplicates!)" = "AVISO: borrado cancelado — convertidos importados, originales conservados (¡duplicados!)";
 "Same duration, resolution and size as another video — probably a duplicate" = "Misma duración, resolución y tamaño que otro vídeo — probablemente duplicado";
 "macOS asks for confirmation; goes to \"Recently Deleted\" (30 days)" = "macOS pide confirmación; va a \"Eliminado recientemente\" (30 días)";
+"[unused time]" = "[tiempo sin usar]";

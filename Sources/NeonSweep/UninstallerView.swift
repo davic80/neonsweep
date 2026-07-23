@@ -269,7 +269,7 @@ struct UninstallerView: View {
     private func leftoverList(_ app: InstalledApp) -> some View {
         NeonScrollView {
             VStack(alignment: .leading, spacing: 3) {
-                ForEach(model.leftovers) { f in
+                ForEach(model.sortedLeftovers) { f in
                     HStack(spacing: 8) {
                         Button {
                             if model.checked.contains(f.id) { model.checked.remove(f.id) }
