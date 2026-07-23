@@ -14,6 +14,10 @@ struct UnusedApp: Identifiable {
     /// nunca la abres tú, la invoca el sistema — así que "sin usar" no
     /// significa "prescindible".
     var isHelper = false
+    /// App de barra de menús (sin icono en el Dock, pero la usas)
+    var isMenuBar = false
+    /// Corriendo ahora mismo: está en uso aunque no la hayas "abierto"
+    var isRunning = false
 
     var daysUnused: Int? {
         lastUsed.map { Int(Date().timeIntervalSince($0)) / 86_400 }
@@ -51,7 +55,9 @@ final class UnusedAppsModel: ObservableObject {
 
     var filtered: [UnusedApp] {
         let base = apps.filter {
-            ($0.daysUnused ?? 9_999) >= minDays && (showHelpers || !$0.isHelper)
+            ($0.daysUnused ?? 9_999) >= minDays
+                && !$0.isRunning                       // en marcha = en uso
+                && (showHelpers || !$0.isHelper)
         }
         let out = sortBySize
             ? base.sorted { $0.size > $1.size }
@@ -87,11 +93,15 @@ final class UnusedAppsModel: ObservableObject {
                 let info = await Task.detached(priority: .userInitiated) {
                     (size: ScanModel.directorySize(URL(fileURLWithPath: app.path)),
                      used: Self.lastUsed(app.path),
-                     helper: Self.isHelperApp(app.path))
+                     helper: Self.isHelperApp(app.path),
+                     menuBar: Self.isMenuBarApp(app.path))
                 }.value
+                let running = NSWorkspace.shared.runningApplications
+                    .contains { $0.bundleIdentifier == app.bundleID }
                 out.append(UnusedApp(path: app.path, name: app.name, bundleID: app.bundleID,
                                      size: info.size, lastUsed: info.used,
-                                     isHelper: info.helper))
+                                     isHelper: info.helper, isMenuBar: info.menuBar,
+                                     isRunning: running))
             }
             apps = out
             progress = ""
@@ -103,18 +113,36 @@ final class UnusedAppsModel: ObservableObject {
         }
     }
 
-    /// ¿Es una app auxiliar? Lo dice su Info.plist: agentes sin interfaz
-    /// (LSUIElement/LSBackgroundOnly) o manejadores de esquemas de URL, que el
-    /// sistema lanza por su cuenta y nunca registran "última apertura".
+    /// Componente auxiliar: SOLO los procesos sin interfaz alguna
+    /// (`LSBackgroundOnly`), que el sistema lanza y tú nunca abres.
+    ///
+    /// Deliberadamente NO se usan otros dos indicadores que parecen útiles:
+    /// - `CFBundleURLTypes`: casi toda app moderna registra esquemas de URL
+    ///   (VLC declara 9); solo significa "sé abrir estos enlaces".
+    /// - `LSUIElement`: son apps de barra de menús (Stats, Tailscale…), que
+    ///   el usuario instala y usa a diario. Se marcan aparte, sin alarma.
     nonisolated static func isHelperApp(_ path: String) -> Bool {
         guard let info = NSDictionary(contentsOfFile: "\(path)/Contents/Info.plist") else {
             return false
         }
-        if (info["LSUIElement"] as? Bool ?? false) || (info["LSUIElement"] as? String == "1") {
-            return true
+        return truthy(info["LSBackgroundOnly"])
+    }
+
+    /// App de barra de menús: sin icono en el Dock, pero es una app de pleno
+    /// derecho. Relevante porque puede llevar meses corriendo sin que la
+    /// "abras", así que su fecha de última apertura engaña.
+    nonisolated static func isMenuBarApp(_ path: String) -> Bool {
+        guard let info = NSDictionary(contentsOfFile: "\(path)/Contents/Info.plist") else {
+            return false
         }
-        if info["LSBackgroundOnly"] as? Bool ?? false { return true }
-        if let urls = info["CFBundleURLTypes"] as? [Any], !urls.isEmpty { return true }
+        return truthy(info["LSUIElement"]) && !truthy(info["LSBackgroundOnly"])
+    }
+
+    /// El Info.plist admite booleano, cadena "1" o número
+    nonisolated private static func truthy(_ v: Any?) -> Bool {
+        if let b = v as? Bool { return b }
+        if let s = v as? String { return s == "1" || s.lowercased() == "true" }
+        if let n = v as? NSNumber { return n.boolValue }
         return false
     }
 

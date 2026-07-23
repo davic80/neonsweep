@@ -384,3 +384,5 @@
 "Auxiliary app: launched by the system, not by you — \"unused\" does not mean removable" = "App auxiliar: la lanza el sistema, no tú — \"sin usar\" no significa prescindible";
 "Component of another tool (URL handler or background agent)" = "Componente de otra herramienta (manejador de URL o agente en segundo plano)";
 "// auxiliary component: removing it breaks the feature it serves, not the main app" = "// componente auxiliar: quitarlo rompe la función que da servicio, no la app principal";
+"menu bar" = "barra de menús";
+"Menu bar app: it may run for months without you ever \"opening\" it" = "App de barra de menús: puede llevar meses corriendo sin que la \"abras\" nunca";

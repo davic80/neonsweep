@@ -135,6 +135,10 @@ struct UnusedAppsView: View {
                         Text(t("helper")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
                             .help(t("Auxiliary app: launched by the system, not by you — \"unused\" does not mean removable"))
                     }
+                    if app.isMenuBar {
+                        Text(t("menu bar")).font(Theme.mono(9)).foregroundStyle(Theme.neonDim)
+                            .help(t("Menu bar app: it may run for months without you ever \"opening\" it"))
+                    }
                 }
                 Text(app.lastUsed.map { Self.df.string(from: $0) } ?? t("never opened"))
                     .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
