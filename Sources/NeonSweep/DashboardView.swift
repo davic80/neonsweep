@@ -55,7 +55,7 @@ struct DashboardView: View {
     // MARK: Disco
 
     private var diskPanel: some View {
-        TerminalPanel(title: "MACINTOSH HD") {
+        TerminalPanel(title: "MACINTOSH HD", id: "dash.disk") {
             let d = model.disk
             let total = Double(max(d.total, 1))
             AsciiBar(segments: [
@@ -129,7 +129,7 @@ struct DashboardView: View {
     // MARK: iCloud
 
     private var icloudPanel: some View {
-        TerminalPanel(title: "ICLOUD") {
+        TerminalPanel(title: "ICLOUD", id: "dash.icloud") {
             row(t("On this Mac"), model.icloud.localSize > 0 ? formatBytes(model.icloud.localSize) : "—")
             row(t("Free in the cloud"), model.icloud.quotaRemaining.map(formatBytes) ?? "…")
             Text(t("// local iCloud Drive files, evictable if you enable Optimize Mac Storage"))

@@ -41,7 +41,7 @@ struct UpdatesView: View {
     // MARK: Homebrew
 
     private var brewPanel: some View {
-        TerminalPanel(title: String(format: t("HOMEBREW — %d updates"), model.brewItems.count)) {
+        TerminalPanel(title: String(format: t("HOMEBREW — %d updates"), model.brewItems.count), id: "updates.brew") {
             if !model.brewFound {
                 Text(t("brew not found on this Mac"))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
@@ -59,7 +59,7 @@ struct UpdatesView: View {
     // MARK: App Store
 
     private var appStorePanel: some View {
-        TerminalPanel(title: String(format: t("APP STORE — %d updates"), model.masItems.count)) {
+        TerminalPanel(title: String(format: t("APP STORE — %d updates"), model.masItems.count), id: "updates.appstore") {
             if !model.masFound {
                 HStack {
                     Text(t("install `mas` (brew install mas) to list App Store updates here"))

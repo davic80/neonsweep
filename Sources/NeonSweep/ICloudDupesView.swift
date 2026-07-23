@@ -64,10 +64,47 @@ struct ICloudDupesView: View {
         }
     }
 
+    /// Umbral de tamaño mínimo. Escala logarítmica: los saltos útiles están
+    /// entre 100 KB y 100 MB, no en incrementos lineales.
+    private var minSizeRow: some View {
+        HStack(spacing: 10) {
+            Text(t("min size:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            Slider(value: Binding(
+                get: { log10(max(10, model.minSizeKB)) },
+                set: { model.setMinSize(kb: pow(10, $0)) }
+            ), in: 1...5)   // 10 KB … 100 MB
+            .frame(maxWidth: 220)
+            .tint(Theme.neon)
+            .disabled(model.scanning)
+            .accessibilityLabel(t("min size:"))
+            .accessibilityValue(formatBytes(Int64(model.minSizeKB * 1_000)))
+            Text(formatBytes(Int64(model.minSizeKB * 1_000)))
+                .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
+                .frame(width: 70, alignment: .leading)
+            if !model.scanned && !model.scanning && !model.groups.isEmpty {
+                Text(t("← rescan to apply")).font(Theme.mono(9)).foregroundStyle(Theme.amber)
+            }
+            Spacer()
+            Button { model.scan() } label: {
+                Text(model.scanning ? t("[ SCANNING… ]") : t("[ RESCAN ]"))
+                    .font(Theme.mono(10, .bold))
+                    .foregroundStyle(model.scanning ? Theme.grayDark : Theme.neon)
+                    .padding(.vertical, 3).padding(.horizontal, 6)
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                        model.scanning ? Theme.border : Theme.neon, lineWidth: 1))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .disabled(model.scanning)
+            .help(t("Lower values find more duplicates but take longer"))
+        }
+    }
+
     private var summaryPanel: some View {
         TerminalPanel(title: t("EXACT FILE DUPLICATES"), id: "icloud.summary") {
             scopeRow
-            Text(t("// SHA-256 over files ≥1 MB; app bundles, libraries and caches are skipped. In iCloud, not-downloaded files are skipped too (hashing them would download everything)."))
+            minSizeRow
+            Text(t("// SHA-256 over files above the size threshold; app bundles, libraries and caches are skipped. In iCloud, not-downloaded files are skipped too (hashing them would download everything)."))
                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             HStack(spacing: 20) {
                 if model.scanned {

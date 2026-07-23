@@ -99,7 +99,7 @@ struct DiskMapView: View {
     // MARK: Treemap — rectángulos proporcionales al tamaño
 
     private var treemapPanel: some View {
-        TerminalPanel(title: t("PROPORTIONAL MAP"), id: "diskmap.tree", collapsible: false) {
+        TerminalPanel(title: t("PROPORTIONAL MAP"), id: "diskmap.tree") {
             TreemapView(
                 nodes: model.current?.children ?? [],
                 checked: model.checked,
@@ -126,7 +126,7 @@ struct DiskMapView: View {
         return TerminalPanel(
             title: String(format: t("%@ — %@"),
                           node?.name ?? "", formatBytes(node?.size ?? 0)),
-            id: "diskmap", collapsible: false
+            id: "diskmap"
         ) {
             if children.isEmpty && !model.scanning {
                 Text(t("empty folder")).font(Theme.body).foregroundStyle(Theme.grayDark)

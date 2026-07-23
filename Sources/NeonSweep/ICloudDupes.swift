@@ -61,7 +61,26 @@ final class ICloudDupesModel: ObservableObject {
 
     var rootPath: String { scope.path ?? customPath ?? DupeScope.icloud.path! }
 
-    private nonisolated static let minSize: Int64 = 1_000_000   // ignorar < 1 MB
+    /// Tamaño mínimo de fichero a considerar (persistido). Bajarlo encuentra
+    /// más duplicados pero hay que volver a escanear: el inventario y los
+    /// hashes se calculan con este filtro.
+    @Published var minSizeKB: Double = {
+        let v = UserDefaults.standard.double(forKey: "dupes.minSizeKB")
+        return v > 0 ? v : 1_000     // 1 MB por defecto
+    }()
+
+    /// Copia legible desde los hilos de escaneo.
+    private nonisolated(unsafe) static var minSize: Int64 = 1_000_000
+
+    func setMinSize(kb: Double) {
+        minSizeKB = kb
+        UserDefaults.standard.set(kb, forKey: "dupes.minSizeKB")
+        Self.minSize = Int64(kb * 1_000)
+        // El resultado anterior ya no vale con otro umbral
+        groups = []
+        scanned = false
+        checked = []
+    }
 
     /// Carpetas que nunca se recorren: paquetes de apps, librerías gestionadas
     /// y cachés donde "duplicado" es normal y borrar rompería cosas.
@@ -104,6 +123,7 @@ final class ICloudDupesModel: ObservableObject {
         guard !scanning else { return }
         scanning = true
         groups = []; checked = []; skippedNotDownloaded = 0
+        Self.minSize = Int64(minSizeKB * 1_000)   // sincronizar con el filtro actual
 
         Task {
             // FASE 1: inventario de ficheros locales (los .icloud sin descargar
