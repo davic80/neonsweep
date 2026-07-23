@@ -66,6 +66,18 @@ struct UnusedAppsView: View {
                     .accessibilityAddTraits(model.minDays == d ? .isSelected : [])
                 }
                 Spacer()
+                if model.helperCount > 0 {
+                    Button { model.showHelpers.toggle() } label: {
+                        Text(String(format: model.showHelpers
+                                    ? t("[ hide %d helpers ]") : t("[ show %d helpers ]"),
+                                    model.helperCount))
+                            .font(Theme.mono(10, model.showHelpers ? .bold : .regular))
+                            .foregroundStyle(model.showHelpers ? Theme.neon : Theme.grayDark)
+                            .frame(minHeight: 24).contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                    .help(t("URL handlers and background agents: the system launches them, so they never register a last-opened date"))
+                }
                 if model.scanned {
                     Text(String(format: t("%d apps · %@ reclaimable"),
                                 model.filtered.count, formatBytes(model.reclaimable)))
@@ -117,7 +129,13 @@ struct UnusedAppsView: View {
             Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
                 .resizable().frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 1) {
-                Text(app.name).font(Theme.body).foregroundStyle(Theme.gray).lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(app.name).font(Theme.body).foregroundStyle(Theme.gray).lineLimit(1)
+                    if app.isHelper {
+                        Text(t("helper")).font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
+                            .help(t("Auxiliary app: launched by the system, not by you — \"unused\" does not mean removable"))
+                    }
+                }
                 Text(app.lastUsed.map { Self.df.string(from: $0) } ?? t("never opened"))
                     .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
             }

@@ -10,6 +10,10 @@ struct UnusedApp: Identifiable {
     let bundleID: String
     var size: Int64
     var lastUsed: Date?
+    /// App auxiliar (manejador de URLs, agente sin icono en el Dock, extensión):
+    /// nunca la abres tú, la invoca el sistema — así que "sin usar" no
+    /// significa "prescindible".
+    var isHelper = false
 
     var daysUnused: Int? {
         lastUsed.map { Int(Date().timeIntervalSince($0)) / 86_400 }
@@ -39,8 +43,16 @@ final class UnusedAppsModel: ObservableObject {
     @Published var sortBySize = UserDefaults.standard.object(forKey: "unused.sortBySize") as? Bool ?? true
     @Published var sortAsc = false
 
+    /// Las auxiliares se ocultan por defecto: nunca se "usan" y borrarlas
+    /// rompe funcionalidad sin liberar espacio.
+    @Published var showHelpers = false
+
+    var helperCount: Int { apps.filter(\.isHelper).count }
+
     var filtered: [UnusedApp] {
-        let base = apps.filter { ($0.daysUnused ?? 9_999) >= minDays }
+        let base = apps.filter {
+            ($0.daysUnused ?? 9_999) >= minDays && (showHelpers || !$0.isHelper)
+        }
         let out = sortBySize
             ? base.sorted { $0.size > $1.size }
             : base.sorted { ($0.daysUnused ?? 0) > ($1.daysUnused ?? 0) }
@@ -74,10 +86,12 @@ final class UnusedAppsModel: ObservableObject {
                 fraction = Double(i) / Double(max(1, installed.count))
                 let info = await Task.detached(priority: .userInitiated) {
                     (size: ScanModel.directorySize(URL(fileURLWithPath: app.path)),
-                     used: Self.lastUsed(app.path))
+                     used: Self.lastUsed(app.path),
+                     helper: Self.isHelperApp(app.path))
                 }.value
                 out.append(UnusedApp(path: app.path, name: app.name, bundleID: app.bundleID,
-                                     size: info.size, lastUsed: info.used))
+                                     size: info.size, lastUsed: info.used,
+                                     isHelper: info.helper))
             }
             apps = out
             progress = ""
@@ -87,6 +101,21 @@ final class UnusedAppsModel: ObservableObject {
             AppLog.log("UNUSED: \(out.count) apps analizadas")
             SoundFX.shared.play(.done)
         }
+    }
+
+    /// ¿Es una app auxiliar? Lo dice su Info.plist: agentes sin interfaz
+    /// (LSUIElement/LSBackgroundOnly) o manejadores de esquemas de URL, que el
+    /// sistema lanza por su cuenta y nunca registran "última apertura".
+    nonisolated static func isHelperApp(_ path: String) -> Bool {
+        guard let info = NSDictionary(contentsOfFile: "\(path)/Contents/Info.plist") else {
+            return false
+        }
+        if (info["LSUIElement"] as? Bool ?? false) || (info["LSUIElement"] as? String == "1") {
+            return true
+        }
+        if info["LSBackgroundOnly"] as? Bool ?? false { return true }
+        if let urls = info["CFBundleURLTypes"] as? [Any], !urls.isEmpty { return true }
+        return false
     }
 
     /// Fecha de último uso según los metadatos de Spotlight. `kMDItemLastUsedDate`

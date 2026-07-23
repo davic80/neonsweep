@@ -377,3 +377,8 @@
 "Delete (asks for admin)" = "Borrar (pedirá admin)";
 "Items marked (admin) were created by an app running with privileges. They cannot go to the Trash: deleting them is PERMANENT and needs your password." = "Los marcados (admin) los creó una app con privilegios. No pueden ir a la Papelera: borrarlos es PERMANENTE y pide tu contraseña.";
 "WARN: could not delete: %@" = "AVISO: no se pudo borrar: %@";
+"helper" = "auxiliar";
+"[ show %d helpers ]" = "[ ver %d auxiliares ]";
+"[ hide %d helpers ]" = "[ ocultar %d auxiliares ]";
+"URL handlers and background agents: the system launches them, so they never register a last-opened date" = "Manejadores de URL y agentes en segundo plano: los lanza el sistema, así que nunca registran última apertura";
+"Auxiliary app: launched by the system, not by you — \"unused\" does not mean removable" = "App auxiliar: la lanza el sistema, no tú — \"sin usar\" no significa prescindible";
