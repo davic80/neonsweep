@@ -498,6 +498,8 @@ final class UninstallerModel: ObservableObject {
                                         claimedGroups: Set<String> = []) -> [OrphanEntry] {
         let fm = FileManager.default
         var out: [OrphanEntry] = []
+        // Rutas que ya cubre BASURA DEV (cachés de npm, pip, SwiftPM…)
+        let ownedByOtherModule = Set(DevJunkSpecs.packageCaches.map(\.1))
         for (locName, locPath) in locations {
             guard let entries = try? fm.contentsOfDirectory(atPath: locPath) else { continue }
             for entry in entries {
@@ -515,6 +517,10 @@ final class UninstallerModel: ObservableObject {
                                     installedNames: installedNames,
                                     claimedGroups: claimedGroups) else { continue }
                 let full = "\(locPath)/\(entry)"
+                // No duplicar lo que ya gestiona otro módulo: las cachés de
+                // herramientas de desarrollo se limpian desde BASURA DEV, y no
+                // son "restos de apps" (son CLIs, no bundles de aplicación).
+                guard !ownedByOtherModule.contains(full) else { continue }
                 var isDir: ObjCBool = false
                 fm.fileExists(atPath: full, isDirectory: &isDir)
                 let size = isDir.boolValue

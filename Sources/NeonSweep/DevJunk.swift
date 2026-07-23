@@ -3,6 +3,27 @@ import Foundation
 // MARK: - Objetivos de [04] BASURA DEV
 
 enum DevJunkSpecs {
+    /// Cachés de gestores de paquetes. Fuente única: la usa este módulo y el
+    /// escáner de huérfanos para NO señalarlas (son herramientas de línea de
+    /// comandos, no restos de apps; se limpian desde BASURA DEV).
+    static let packageCaches: [(String, String)] = [
+        ("npm", "\(JunkFS.home)/.npm"),
+        ("yarn", "\(JunkFS.home)/Library/Caches/Yarn"),
+        ("pnpm", "\(JunkFS.home)/Library/pnpm/store"),
+        ("pip", "\(JunkFS.home)/Library/Caches/pip"),
+        ("poetry", "\(JunkFS.home)/Library/Caches/pypoetry"),
+        ("uv", "\(JunkFS.home)/.cache/uv"),
+        ("uv (Caches)", "\(JunkFS.home)/Library/Caches/uv"),
+        ("pipenv", "\(JunkFS.home)/Library/Caches/pipenv"),
+        ("Homebrew", "\(JunkFS.home)/Library/Caches/Homebrew"),
+        ("cargo (registry)", "\(JunkFS.home)/.cargo/registry"),
+        ("gradle", "\(JunkFS.home)/.gradle/caches"),
+        ("CocoaPods", "\(JunkFS.home)/Library/Caches/CocoaPods"),
+        ("Go modules", "\(JunkFS.home)/go/pkg/mod"),
+        ("SwiftPM", "\(JunkFS.home)/Library/Caches/org.swift.swiftpm"),
+        ("Maven", "\(JunkFS.home)/.m2/repository"),
+    ]
+
     static let all: [JunkCategorySpec] = [
         JunkCategorySpec(
             id: "deriveddata", name: "XCODE DERIVEDDATA",
@@ -27,23 +48,7 @@ enum DevJunkSpecs {
         JunkCategorySpec(
             id: "pkgcaches", name: "PACKAGE MANAGER CACHES",
             note: "npm/pip/brew/etc. will re-download if needed",
-            scan: { JunkFS.labeledPaths([
-                ("npm", "\(JunkFS.home)/.npm"),
-                ("yarn", "\(JunkFS.home)/Library/Caches/Yarn"),
-                ("pnpm", "\(JunkFS.home)/Library/pnpm/store"),
-                ("pip", "\(JunkFS.home)/Library/Caches/pip"),
-                ("poetry", "\(JunkFS.home)/Library/Caches/pypoetry"),
-                ("uv", "\(JunkFS.home)/.cache/uv"),
-                ("uv (Caches)", "\(JunkFS.home)/Library/Caches/uv"),
-                ("pipenv", "\(JunkFS.home)/Library/Caches/pipenv"),
-                ("Homebrew", "\(JunkFS.home)/Library/Caches/Homebrew"),
-                ("cargo (registry)", "\(JunkFS.home)/.cargo/registry"),
-                ("gradle", "\(JunkFS.home)/.gradle/caches"),
-                ("CocoaPods", "\(JunkFS.home)/Library/Caches/CocoaPods"),
-                ("Go modules", "\(JunkFS.home)/go/pkg/mod"),
-                ("SwiftPM", "\(JunkFS.home)/Library/Caches/org.swift.swiftpm"),
-                ("Maven", "\(JunkFS.home)/.m2/repository"),
-            ]) }),
+            scan: { JunkFS.labeledPaths(packageCaches) }),
         JunkCategorySpec(
             id: "nodemodules", name: "FORGOTTEN NODE_MODULES",
             note: "project dependencies; `npm install` recreates them — check the project date",
