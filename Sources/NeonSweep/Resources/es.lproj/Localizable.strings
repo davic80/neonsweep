@@ -395,3 +395,10 @@
 "only projects untouched for 60+ days; `npm install` recreates them" = "solo proyectos sin tocar 60+ días; `npm install` los recrea";
 "only projects untouched for 60+ days; `uv sync` / `poetry install` recreates them" = "solo proyectos sin tocar 60+ días; `uv sync` / `poetry install` los recrea";
 ".dmg / .pkg / .iso in Downloads — check the date; keep the ones you use as media" = ".dmg / .pkg / .iso en Descargas — mira la fecha; conserva los que uses como imagen";
+"untouched for:" = "sin tocar:";
+"`npm install` recreates them" = "`npm install` los recrea";
+"`uv sync` / `poetry install` recreates them" = "`uv sync` / `poetry install` los recrea";
+"1y" = "1a";
+"6m" = "6m";
+"d" = "d";
+"thumbs:" = "miniaturas:";

@@ -32,6 +32,7 @@ extension PhotosView {
                     groupSortChip(t("[saving]"), .saving)
                     groupSortChip(t("[photos]"), .count)
                     groupSortChip(t("[date]"), .date)
+                    thumbSizeControl
                     Spacer()
                     Text(String(format: t("potential saving here: %@"), formatBytes(visibleSaving)))
                         .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
@@ -141,13 +142,43 @@ extension PhotosView {
                 .help(t("Deletes ALL photos in this set, INCLUDING the best (system asks to confirm)"))
             }
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 6) {
+                LazyHStack(spacing: 8) {
                     ForEach(g.members) { m in
                         thumbCell(m, group: g)
                     }
                 }
+                .padding(.vertical, 2)
             }
-            .frame(height: 132)
+            // miniatura + fila de estado (20) + fila de datos (~14) + aire
+            .frame(height: CGFloat(model.thumbSide) + 44)
+        }
+    }
+
+    /// Tamaño de miniatura: en un grupo de 12 fotos casi iguales, poder
+    /// agrandarlas es la diferencia entre decidir y adivinar.
+    private var thumbSizeControl: some View {
+        HStack(spacing: 4) {
+            Text(t("thumbs:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                .padding(.leading, 10)
+            Button { model.bumpThumb(-24) } label: {
+                Text("[-]").font(Theme.mono(10, .bold))
+                    .foregroundStyle(model.thumbSide <= 64 ? Theme.grayDark : Theme.neonDim)
+                    .frame(minWidth: 26, minHeight: 24).contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .disabled(model.thumbSide <= 64)
+            .accessibilityLabel(t("thumbs:") + " −")
+            Button { model.bumpThumb(24) } label: {
+                Text("[+]").font(Theme.mono(10, .bold))
+                    .foregroundStyle(model.thumbSide >= 220 ? Theme.grayDark : Theme.neonDim)
+                    .frame(minWidth: 26, minHeight: 24).contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .disabled(model.thumbSide >= 220)
+            .accessibilityLabel(t("thumbs:") + " +")
+            Text("\(Int(model.thumbSide))px")
+                .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+                .frame(width: 36, alignment: .leading)
         }
     }
 
@@ -178,11 +209,10 @@ extension PhotosView {
         let isBest = m.id == g.bestID
         let isSel = model.selected.contains(m.id)
         let hasGPS = m.asset.location != nil
+        let side = CGFloat(model.thumbSide)
         return VStack(spacing: 2) {
             ZStack(alignment: .topLeading) {
-                AssetThumb(asset: m.asset)
-                    .frame(width: 92, height: 92)
-                    .clipped()
+                AssetThumb(asset: m.asset, side: side)
                     .overlay(RoundedRectangle(cornerRadius: 3).stroke(
                         isSel ? Theme.neon : Theme.border, lineWidth: isSel ? 2 : 1))
                 if isBest {
@@ -205,11 +235,12 @@ extension PhotosView {
                     }
                 }
             }
-            .frame(width: 92)
+            .frame(width: side)
             Text(isSel ? t("[x] delete") : (isBest ? "★ " + t("kept") : "[ ] " + formatBytes(m.fileSize)))
                 .font(Theme.mono(10, isSel ? .bold : .regular))
                 .foregroundStyle(isSel ? Theme.amber : (isBest ? Theme.neonDim : Theme.grayDark))
-                .frame(width: 92, height: 20)
+                .lineLimit(1)
+                .frame(width: side, height: 20)
                 .contentShape(Rectangle())
             // datos para decidir: resolución · GPS · hora
             Text("\(m.asset.pixelWidth)×\(m.asset.pixelHeight)"
@@ -217,7 +248,11 @@ extension PhotosView {
                  + (m.asset.creationDate.map { " " + Self.timeF.string(from: $0) } ?? ""))
                 .font(Theme.mono(8))
                 .foregroundStyle(hasGPS ? Theme.gray : Theme.grayDark)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(width: side)
         }
+        .frame(width: side)
         .contentShape(Rectangle())
         .highPriorityGesture(TapGesture(count: 2).onEnded {
             preview = PreviewTarget(id: m.id, asset: m.asset)

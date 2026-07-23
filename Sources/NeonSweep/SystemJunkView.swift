@@ -89,6 +89,8 @@ struct JunkView: View {
                 }
             }
 
+            if cat.hasAgeFilter { ageFilterRow }
+
             if cat.scanned && cat.entries.isEmpty {
                 Text(t("nothing to clean here"))
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
@@ -102,6 +104,41 @@ struct JunkView: View {
                 }
                 .padding(.top, 4)
             }
+        }
+    }
+
+    /// Cuánto tiempo sin tocar un proyecto para considerarlo olvidado.
+    /// Cambiarlo relanza el escaneo: el filtro se aplica al recorrer el disco.
+    private var ageFilterRow: some View {
+        HStack(spacing: 6) {
+            Text(t("untouched for:"))
+                .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            ForEach(DevJunkSpecs.forgottenChoices, id: \.self) { d in
+                let active = DevJunkSpecs.forgottenDays == d
+                Button {
+                    guard !active else { return }
+                    DevJunkSpecs.setForgottenDays(d)
+                    model.scan()
+                } label: {
+                    Text("[\(dayLabel(d))]")
+                        .font(Theme.mono(10, active ? .bold : .regular))
+                        .foregroundStyle(active ? Theme.neon : Theme.grayDark)
+                        .frame(minHeight: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .disabled(model.scanning)
+                .accessibilityAddTraits(active ? .isSelected : [])
+            }
+            Spacer()
+        }
+    }
+
+    private func dayLabel(_ d: Int) -> String {
+        switch d {
+        case 365: return t("1y")
+        case 180: return t("6m")
+        default:  return "\(d)" + t("d")
         }
     }
 

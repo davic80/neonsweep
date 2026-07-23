@@ -32,21 +32,21 @@ struct NeonScrollView<Content: View>: View {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Theme.panel)
                     .overlay(RoundedRectangle(cornerRadius: 2).stroke(Theme.border, lineWidth: 1))
-                    .frame(width: 7)
-                // knob de bloques ▮▮▮
+                    .frame(width: 11)
+                // knob de bloques ▮▮▮ — verde apagado, sin glow: es un mando,
+                // no un dato; el neón se reserva para lo que se puede ganar
                 VStack(spacing: 2) {
                     ForEach(0..<max(2, Int(knobH / 8)), id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 1)
-                            .fill(Theme.neon)
-                            .frame(width: 5, height: 6)
+                            .fill(Theme.neonDim)
+                            .frame(width: 9, height: 6)
                     }
                 }
                 .frame(height: knobH)
                 .clipped()
-                .shadow(color: Theme.neon.opacity(0.6), radius: 4)
                 .offset(y: y)
             }
-            .frame(width: 7)
+            .frame(width: 11)
             .padding(.trailing, 3)
             .padding(.vertical, 2)
             .allowsHitTesting(false)

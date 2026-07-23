@@ -212,8 +212,7 @@ struct PhotosView: View {
                     if model.optimizing {
                         HStack(spacing: 8) {
                             if let w = model.workingAsset {
-                                AssetThumb(asset: w)
-                                    .frame(width: 40, height: 40).clipped()
+                                AssetThumb(asset: w, side: 40)
                                     .overlay(RoundedRectangle(cornerRadius: 3)
                                         .stroke(Theme.neon, lineWidth: 1))
                             }
@@ -516,7 +515,7 @@ struct PhotosView: View {
                 Text("[·]").font(Theme.body).foregroundStyle(Theme.grayDark)
                     .help(t("Already HEVC — recompressing won't shrink it"))
             }
-            AssetThumb(asset: m.asset).frame(width: 44, height: 28).clipped()
+            AssetThumb(asset: m.asset, side: 44).frame(width: 44, height: 28).clipped()
                 .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
                 .help(t("Click to preview"))
             if m.asset.mediaType == .video {
@@ -664,28 +663,42 @@ struct PhotosView: View {
 /// Miniatura de un PHAsset vía PHImageManager (asíncrona, caché del sistema).
 struct AssetThumb: View {
     let asset: PHAsset
+    var side: CGFloat = 92
     @State private var image: NSImage?
 
     var body: some View {
         ZStack {
+            Rectangle().fill(Theme.panel)
             if let image {
                 Image(nsImage: image).resizable().scaledToFill()
             } else {
-                Rectangle().fill(Theme.panel)
                 Text("…").font(Theme.small).foregroundStyle(Theme.grayDark)
             }
         }
-        .onAppear {
-            let opts = PHImageRequestOptions()
-            opts.deliveryMode = .opportunistic
-            opts.resizeMode = .fast
-            opts.isNetworkAccessAllowed = false
-            PHImageManager.default().requestImage(
-                for: asset, targetSize: CGSize(width: 120, height: 120),
-                contentMode: .aspectFill, options: opts
-            ) { img, _ in
-                if let img { image = img }
-            }
+        // El recorte y la forma de pulsación van AQUÍ, no en quien la usa: una
+        // foto vertical con scaledToFill se sale del cuadro por arriba y por
+        // abajo, y `.clipped()` recorta el dibujo pero NO el área sensible al
+        // clic. Sin esto, pulsar una miniatura activaba la vertical de la fila
+        // de al lado.
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .contentShape(RoundedRectangle(cornerRadius: 3))
+        .onAppear { load() }
+        // Al cambiar el tamaño se vuelve a pedir con más resolución
+        .onChange(of: side) { _, _ in load() }
+    }
+
+    private func load() {
+        let opts = PHImageRequestOptions()
+        opts.deliveryMode = .opportunistic
+        opts.resizeMode = .fast
+        opts.isNetworkAccessAllowed = false
+        let px = side * 2   // margen para pantallas Retina
+        PHImageManager.default().requestImage(
+            for: asset, targetSize: CGSize(width: px, height: px),
+            contentMode: .aspectFill, options: opts
+        ) { img, _ in
+            if let img { image = img }
         }
     }
 }

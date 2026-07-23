@@ -153,6 +153,24 @@ import CryptoKit
         #expect(UnusedAppsModel.qualifiesAsUnused(daysUnused: 90, minDays: 90), "el umbral es inclusivo")
     }
 
+    // MARK: node_modules / venvs "olvidados" — el umbral es ajustable
+
+    /// Caso real: padelscores/cloud tocado hace 2 días salía como basura.
+    @Test func liveProjectIsNeverForgotten() {
+        let now = Date()
+        let twoDaysAgo = now.addingTimeInterval(-2 * 86_400)
+        for days in DevJunkSpecs.forgottenChoices {
+            #expect(!DevJunkSpecs.isForgotten(lastActivity: twoDaysAgo, days: days, now: now),
+                    "un proyecto de hace 2 días no está olvidado ni con el umbral de \(days)")
+        }
+        // Y el umbral manda de verdad en ambos sentidos
+        let d45 = now.addingTimeInterval(-45 * 86_400)
+        #expect(DevJunkSpecs.isForgotten(lastActivity: d45, days: 30, now: now))
+        #expect(!DevJunkSpecs.isForgotten(lastActivity: d45, days: 60, now: now))
+        // Sin fecha no se juzga
+        #expect(!DevJunkSpecs.isForgotten(lastActivity: nil, days: 15, now: now))
+    }
+
     // MARK: umbral de vídeos gemelos (2% de tamaño)
 
     @Test func dupeVideoSizeThreshold() {

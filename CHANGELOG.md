@@ -2,12 +2,21 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
-## [Unreleased]
+## [0.6.0] — 2026-07-23
 
 ### Added
 - **Read-only CLI report**: `NeonSweep --report [--json]` prints disk usage and reclaimable space per category and exits. It never deletes anything — deliberately, so it's safe in a cron job or a status bar script. Cleaning stays interactive.
+- **Adjustable "forgotten" threshold** for node_modules / venvs: 15, 30, 60, 90, 180 or 365 days without touching the project. Changing it rescans.
+- **Resizable thumbnails** in duplicate photos (64–220 px, `[-]`/`[+]`, persisted); the image is requested at the size it's shown at, so bigger no longer means blurrier.
 - Duplicate photos: a counter of **favourites excluded from bulk marking**.
 - Unused apps: a counter of apps **with no usage data**, which are no longer judged.
+
+### Changed
+- Sidebar is noticeably narrower and the module block is centred, with the `[01]`…`[09]` indices aligned in a column.
+- Scrollbar knob is dim green instead of phosphor neon, and wider: it's a control, not a number — the bright green is reserved for space you can reclaim.
+
+### Fixed
+- **Clicking a thumbnail selected the wrong photo**: a portrait photo scaled to fill overflows its square, and `.clipped()` clips the drawing but *not* the tap area, so vertical thumbnails were stealing clicks from the row above and below. `AssetThumb` now frames, clips and sets its own hit shape.
 
 ### Fixed — false-positive audit
 - **Hard links and symlinks counted as duplicates** in file dupes: several names for the same inode reported wasted space that deleting would never recover. One representative per inode now, symlinks skipped, and sizes read as allocated-on-disk. Added a note that APFS clones share storage, so real freed space can be lower than estimated.

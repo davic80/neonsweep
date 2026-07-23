@@ -54,7 +54,7 @@ struct VideoOptimizeSheet: View {
             + String(format: "%d:%02d", mins, secs) + " · "
             + formatBytes(pa.fileSize) + " · " + codec
         return HStack(spacing: 10) {
-            AssetThumb(asset: pa.asset).frame(width: 72, height: 46).clipped()
+            AssetThumb(asset: pa.asset, side: 72).frame(width: 72, height: 46).clipped()
             VStack(alignment: .leading, spacing: 2) {
                 Text(pa.filename ?? "—")
                     .font(Theme.mono(14, .bold)).foregroundStyle(Theme.neon)

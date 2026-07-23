@@ -138,8 +138,8 @@ struct RootView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .center, spacing: 4) {
+            VStack(alignment: .center, spacing: 2) {
                 Text("NEONSWEEP")
                     .font(Theme.mono(18, .bold))
                     .foregroundStyle(Theme.neon)
@@ -148,7 +148,7 @@ struct RootView: View {
                     AppLog.setProfile(!AppLog.profileEnabled)
                     dbg = AppLog.profileEnabled
                 } label: {
-                    Text("v0.5.0 // mac cleaner" + (dbg ? " [dbg]" : ""))
+                    Text("v0.6.0 // mac cleaner" + (dbg ? " [dbg]" : ""))
                         .font(Theme.mono(10))
                         .foregroundStyle(dbg ? Theme.amber : Theme.grayDark)
                         .contentShape(Rectangle())
@@ -158,31 +158,34 @@ struct RootView: View {
             }
             .padding(.bottom, 24)
 
-            ForEach(Array(Module.allCases.enumerated()), id: \.element) { idx, m in
-                Button {
-                    selected = m
-                } label: {
-                    HStack(spacing: 8) {
-                        Text(selected == m ? ">" : " ")
-                            .foregroundStyle(Theme.neon)
-                        Text("[\(m.index)]")
-                            .foregroundStyle(Theme.grayDark)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                        Text(m.label)
-                            .foregroundStyle(selected == m ? Theme.neon : Theme.gray)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                        Spacer(minLength: 0)
+            // El bloque de módulos va centrado como conjunto, pero por dentro
+            // alineado a la izquierda: así los [01]…[09] forman columna en vez
+            // de bailar según lo largo que sea cada nombre.
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(Module.allCases.enumerated()), id: \.element) { idx, m in
+                    Button {
+                        selected = m
+                    } label: {
+                        // Sin columna de cursor: el activo se distingue por
+                        // color y negrita, y [01] recuerda su ⌘n.
+                        HStack(spacing: 6) {
+                            Text("[\(m.index)]")
+                                .foregroundStyle(selected == m ? Theme.neonDim : Theme.grayDark)
+                            Text(m.label)
+                                .foregroundStyle(selected == m ? Theme.neon : Theme.gray)
+                            Spacer(minLength: 0)
+                        }
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .font(Theme.mono(13, selected == m ? .bold : .regular))
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
                     }
-                    .font(Theme.mono(13, selected == m ? .bold : .regular))
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
+                    .buttonStyle(NeonClick())
+                    .keyboardShortcut(KeyEquivalent(Character("\(idx + 1)")), modifiers: .command)
+                    .help("⌘\(idx + 1)")
+                    .accessibilityAddTraits(selected == m ? .isSelected : [])
                 }
-                .buttonStyle(NeonClick())
-                .keyboardShortcut(KeyEquivalent(Character("\(idx + 1)")), modifiers: .command)
-                .help("⌘\(idx + 1)")
-                .accessibilityAddTraits(selected == m ? .isSelected : [])
             }
             // ⌘R: re-escanea/actualiza el módulo activo
             Button("") { rescanCurrent() }
@@ -241,15 +244,17 @@ struct RootView: View {
                 Text(t("// no telemetry\n// nothing deleted without asking"))
                     .font(Theme.mono(9))
                     .foregroundStyle(Theme.grayDark)
+                    .multilineTextAlignment(.center)
                     .padding(.top, 4)
             }
             .padding(.top, 10)
         }
-        .padding(.horizontal, 14).padding(.vertical, 18)
+        .padding(.horizontal, 8).padding(.vertical, 18)
         // Se ajusta al elemento más largo (p. ej. "ACTUALIZACIONES") sin pasarse:
         // los atajos ⌘n viven en el tooltip, no en la fila, para no ensancharlo.
         .fixedSize(horizontal: true, vertical: false)
-        .frame(minWidth: 190 * Theme.scaleFactor, maxWidth: 320, alignment: .leading)
+        .frame(minWidth: 120 * Theme.scaleFactor,
+               maxWidth: 210 * Theme.scaleFactor, alignment: .center)
         .background(Theme.bg)
     }
 
@@ -272,6 +277,7 @@ struct RootView: View {
             Text(t("[ RECLAIMED ]"))
                 .font(Theme.mono(10, .bold))
                 .foregroundStyle(Theme.neonDim)
+                .frame(maxWidth: .infinity, alignment: .leading)
             counterRow(t("→ trash"), tracker.sessionTrashed, dim: true)
             counterRow(t("cleaned today"), tracker.todayPurged)
             counterRow(t("cleaned total"), tracker.allTimePurged)

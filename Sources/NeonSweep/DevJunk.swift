@@ -51,12 +51,14 @@ enum DevJunkSpecs {
             scan: { JunkFS.labeledPaths(packageCaches) }),
         JunkCategorySpec(
             id: "nodemodules", name: "FORGOTTEN NODE_MODULES",
-            note: "only projects untouched for 60+ days; `npm install` recreates them",
-            scan: { forgottenDirs(named: ["node_modules"], hidden: false) }),
+            note: "`npm install` recreates them",
+            scan: { forgottenDirs(named: ["node_modules"], hidden: false) },
+            hasAgeFilter: true),
         JunkCategorySpec(
             id: "venvs", name: "FORGOTTEN VENVS",
-            note: "only projects untouched for 60+ days; `uv sync` / `poetry install` recreates them",
-            scan: { forgottenDirs(named: [".venv", "venv"], hidden: true) }),
+            note: "`uv sync` / `poetry install` recreates them",
+            scan: { forgottenDirs(named: [".venv", "venv"], hidden: true) },
+            hasAgeFilter: true),
     ]
 
     // MARK: Simuladores con nombre legible
@@ -87,7 +89,33 @@ enum DevJunkSpecs {
     // MARK: directorios de dependencias en proyectos sin tocar
 
     /// Un proyecto tocado dentro de esta ventana está vivo, no olvidado.
-    nonisolated static let activeProjectWindow: TimeInterval = 60 * 86_400
+    /// Ajustable desde la vista; se lee desde los hilos de escaneo.
+    static let forgottenChoices = [15, 30, 60, 90, 180, 365]
+
+    nonisolated(unsafe) static var forgottenDays: Int = {
+        let v = UserDefaults.standard.integer(forKey: "dev.forgottenDays")
+        return v > 0 ? v : 60
+    }()
+
+    static func setForgottenDays(_ d: Int) {
+        forgottenDays = d
+        UserDefaults.standard.set(d, forKey: "dev.forgottenDays")
+    }
+
+    /// Nota de las categorías con umbral: refleja el valor activo.
+    static var forgottenNote: String {
+        String(format: t("only projects untouched for %d+ days; the package manager recreates them"),
+               forgottenDays)
+    }
+
+    /// ¿Olvidado? Solo si hay fecha y es más vieja que el umbral. Sin fecha
+    /// no se juzga: igual que con las apps sin uso, la falta de dato no es
+    /// prueba de abandono.
+    nonisolated static func isForgotten(lastActivity: Date?, days: Int,
+                                        now: Date = Date()) -> Bool {
+        guard let lastActivity else { return false }
+        return now.timeIntervalSince(lastActivity) >= TimeInterval(days) * 86_400
+    }
 
     /// Actividad real del proyecto: la fecha más reciente entre el propio
     /// directorio y sus hijos directos, ignorando la carpeta de dependencias
@@ -132,7 +160,7 @@ enum DevJunkSpecs {
                     // tocó hace nada, borrar sus dependencias solo cuesta un
                     // `npm install`. Un .venv de un proyecto vivo NO es basura.
                     let mod = lastActivity(in: dir, excluding: n)
-                    if let mod, Date().timeIntervalSince(mod) < activeProjectWindow { continue }
+                    guard isForgotten(lastActivity: mod, days: forgottenDays) else { continue }
                     let projectName = (dir as NSString).lastPathComponent
                     results.append(JunkEntry(
                         name: "\(projectName)/\(n)", path: p, size: size,

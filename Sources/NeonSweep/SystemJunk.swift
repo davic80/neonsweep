@@ -15,6 +15,8 @@ struct JunkCategory: Identifiable {
     let id: String
     let name: String
     let note: String              // aviso corto bajo el título
+    /// Muestra el selector de "días sin tocar" (solo node_modules / venvs)
+    var hasAgeFilter = false
     var entries: [JunkEntry] = []
     var scanned = false
     var totalSize: Int64 { entries.map(\.size).reduce(0, +) }
@@ -26,6 +28,7 @@ struct JunkCategorySpec {
     let name: String
     let note: String
     let scan: @Sendable () -> [JunkEntry]
+    var hasAgeFilter = false
 }
 
 // MARK: - Motor genérico (lo usan [03] BASURA SISTEMA y [04] BASURA DEV)
@@ -58,7 +61,9 @@ final class JunkModel: ObservableObject {
         guard !scanning else { return }
         scanning = true
         checked = []
-        categories = specs.map { JunkCategory(id: $0.id, name: $0.name, note: $0.note) }
+        categories = specs.map {
+            JunkCategory(id: $0.id, name: $0.name, note: $0.note, hasAgeFilter: $0.hasAgeFilter)
+        }
 
         Task {
             for (idx, spec) in specs.enumerated() {

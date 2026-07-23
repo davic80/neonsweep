@@ -603,6 +603,17 @@ final class PhotosModel: ObservableObject {
     }
 
     /// El usuario elige otra "mejor" para el grupo; la anterior pasa a ser marcable.
+    /// Lado de la miniatura en la rejilla de duplicados (persistido).
+    @Published var thumbSide: Double = {
+        let v = UserDefaults.standard.double(forKey: "photos.thumbSide")
+        return v > 0 ? min(220, max(64, v)) : 120
+    }()
+
+    func bumpThumb(_ delta: Double) {
+        thumbSide = min(220, max(64, thumbSide + delta))
+        UserDefaults.standard.set(thumbSide, forKey: "photos.thumbSide")
+    }
+
     func setBest(_ g: DupeGroup, to id: String) {
         guard let idx = groups.firstIndex(where: { $0.id == g.id }),
               groups[idx].members.contains(where: { $0.id == id }) else { return }
