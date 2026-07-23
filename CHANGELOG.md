@@ -2,6 +2,11 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.7.2] — 2026-07-24
+
+### Changed
+- Tagging a release now bumps the Homebrew cask automatically instead of by hand, so the DMG and `brew` stop drifting apart.
+
 ## [0.7.1] — 2026-07-24
 
 ### Fixed
