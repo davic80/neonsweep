@@ -4,7 +4,49 @@
 "DEV JUNK" = "BASURA DEV";
 "PHOTOS" = "FOTOS";
 "UPDATES" = "ACTUALIZACIONES";
-"ICLOUD DUPES" = "DUPES ICLOUD";
+"FILE DUPES" = "FICHEROS DUPES";
+"DISK MAP" = "MAPA DE DISCO";
+"UNUSED APPS" = "APPS SIN USO";
+
+/* Mapa de disco */
+"[ SCAN HOME ]" = "[ ESCANEAR INICIO ]";
+"[ WHOLE DISK ]" = "[ TODO EL DISCO ]";
+"Scan / instead of your home folder (slower, needs Full Disk Access)" = "Escanea / en vez de tu carpeta de usuario (más lento, requiere Acceso Total al Disco)";
+"WHAT'S TAKING UP SPACE" = "QUÉ OCUPA TU ESPACIO";
+"Navigate your folders by size, biggest first. Click a folder to go inside; anything you mark goes to the Trash." = "Navega tus carpetas por tamaño, las mayores primero. Clic en una carpeta para entrar; lo que marques va a la Papelera.";
+"%@ — %@" = "%@ — %@";
+"empty folder" = "carpeta vacía";
+"[ UP ]" = "[ SUBIR ]";
+"Click to go inside" = "Clic para entrar";
+"Click to reveal in Finder" = "Clic para mostrar en Finder";
+
+/* Apps sin uso */
+"APPS YOU DON'T USE" = "APPS QUE NO USAS";
+"// last-opened date comes from Spotlight (same as Finder's \"Last opened\"). Sorted by how much you'd gain: size × time unused." = "// la fecha de última apertura viene de Spotlight (la misma que muestra Finder). Ordenadas por lo que ganarías: tamaño × tiempo sin usar.";
+"unused for at least:" = "sin abrir al menos:";
+"[%d months]" = "[%d meses]";
+"[1 year]" = "[1 año]";
+"%d apps · %@ reclaimable" = "%d apps · %@ recuperables";
+"CANDIDATES — %d" = "CANDIDATAS — %d";
+"nothing unused at this threshold ✓" = "nada sin usar con este umbral ✓";
+"never opened" = "nunca abierta";
+"%d months" = "%d meses";
+"%d years" = "%d años";
+"[ FINDER ]" = "[ FINDER ]";
+"[ UNINSTALL ]" = "[ DESINSTALAR ]";
+"Opens it in the uninstaller with all its leftovers" = "La abre en el desinstalador con todos sus restos";
+
+/* Ámbito de duplicados */
+"where:" = "dónde:";
+"iCloud Drive" = "iCloud Drive";
+"Home folder" = "Carpeta de usuario";
+"Downloads" = "Descargas";
+"Documents" = "Documentos";
+"Choose…" = "Elegir…";
+"[ SCAN ]" = "[ ESCANEAR ]";
+"EXACT FILE DUPLICATES" = "FICHEROS DUPLICADOS EXACTOS";
+"// SHA-256 over files ≥1 MB; app bundles, libraries and caches are skipped. In iCloud, not-downloaded files are skipped too (hashing them would download everything)." = "// SHA-256 sobre ficheros ≥1 MB; se omiten apps, librerías y cachés. En iCloud también los no descargados (hashearlos lo descargaría todo).";
+"listing %@…" = "inventariando %@…";
 
 /* Dupes iCloud Drive */
 "[ SCAN ICLOUD DRIVE ]" = "[ ESCANEAR ICLOUD DRIVE ]";

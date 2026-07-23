@@ -17,18 +17,20 @@ struct NeonSweepApp: App {
 }
 
 enum Module: String, CaseIterable, Identifiable {
-    case dashboard, uninstaller, systemJunk, devJunk, photos, updates, icloudDupes
+    case dashboard, diskMap, uninstaller, unusedApps, systemJunk, devJunk, photos, updates, fileDupes
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .dashboard:   return t("DASHBOARD")
+        case .diskMap:     return t("DISK MAP")
+        case .unusedApps:  return t("UNUSED APPS")
         case .uninstaller: return t("UNINSTALLER")
         case .systemJunk:  return t("SYSTEM JUNK")
         case .devJunk:     return t("DEV JUNK")
         case .photos:      return t("PHOTOS")
         case .updates:     return t("UPDATES")
-        case .icloudDupes: return t("ICLOUD DUPES")
+        case .fileDupes:   return t("FILE DUPES")
         }
     }
     var index: String {
@@ -44,6 +46,8 @@ struct RootView: View {
     @StateObject private var photos = PhotosModel()
     @StateObject private var updates = UpdatesModel()
     @StateObject private var icloudDupes = ICloudDupesModel()
+    @StateObject private var diskMap = DiskMapModel()
+    @StateObject private var unusedApps = UnusedAppsModel()
     @ObservedObject private var tracker = FreedTracker.shared
     @ObservedObject private var lang = Lang.shared
     @ObservedObject private var sfx = SoundFX.shared
@@ -80,8 +84,21 @@ struct RootView: View {
                         PhotosView(model: photos)
                     case .updates:
                         UpdatesView(model: updates)
-                    case .icloudDupes:
+                    case .fileDupes:
                         ICloudDupesView(model: icloudDupes)
+                    case .diskMap:
+                        DiskMapView(model: diskMap)
+                    case .unusedApps:
+                        UnusedAppsView(model: unusedApps) { bundleID in
+                            // Salta al desinstalador con esa app ya seleccionada
+                            if let app = uninstaller.apps.first(where: { $0.bundleID == bundleID }) {
+                                uninstaller.inspect(app)
+                            } else {
+                                uninstaller.loadApps()
+                                uninstaller.search = bundleID
+                            }
+                            selected = .uninstaller
+                        }
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -250,7 +267,9 @@ struct RootView: View {
         case .devJunk:     devJunk.scan()
         case .photos:      photos.requestAndScan()
         case .updates:     updates.scan()
-        case .icloudDupes: icloudDupes.scan()
+        case .fileDupes:   icloudDupes.scan()
+        case .diskMap:     diskMap.start()
+        case .unusedApps:  unusedApps.scan()
         }
     }
 

@@ -1,0 +1,125 @@
+import SwiftUI
+
+struct UnusedAppsView: View {
+    @ObservedObject var model: UnusedAppsModel
+    var onUninstall: (String) -> Void      // pasa el bundle ID al desinstalador
+
+    private static let df: DateFormatter = {
+        let d = DateFormatter(); d.dateStyle = .medium; d.timeStyle = .none; return d
+    }()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            NeonScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    header
+                    if model.scanning {
+                        ProgressStrip(label: model.progress, fraction: model.fraction)
+                    }
+                    summary
+                    listPanel
+                }
+                .padding(20)
+            }
+        }
+        .background(Theme.bg)
+        .onAppear { if !model.scanned && !model.scanning { model.scan() } }
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text("david@mac:~$").font(Theme.mono(14, .bold)).foregroundStyle(Theme.gray)
+            Text("neonsweep --unused").font(Theme.mono(14, .bold)).foregroundStyle(Theme.neon)
+            if !model.scanning { BlinkingCursor() }
+            Spacer()
+            Button { model.scan() } label: {
+                Text(model.scanning ? t("[ SCANNING… ]") : t("[ RESCAN ]"))
+                    .font(Theme.mono(12, .bold))
+                    .foregroundStyle(model.scanning ? Theme.grayDark : Theme.neon)
+            }
+            .buttonStyle(NeonClick())
+            .disabled(model.scanning)
+        }
+    }
+
+    private var summary: some View {
+        TerminalPanel(title: t("APPS YOU DON'T USE"), id: "unused.summary") {
+            Text(t("// last-opened date comes from Spotlight (same as Finder's \"Last opened\"). Sorted by how much you'd gain: size × time unused."))
+                .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            HStack(spacing: 12) {
+                Text(t("unused for at least:")).font(Theme.body).foregroundStyle(Theme.gray)
+                ForEach([1, 3, 6, 12], id: \.self) { m in
+                    Button { model.minMonths = m } label: {
+                        Text(m == 12 ? t("[1 year]") : String(format: t("[%d months]"), m))
+                            .font(Theme.mono(10, model.minMonths == m ? .bold : .regular))
+                            .foregroundStyle(model.minMonths == m ? Theme.neon : Theme.grayDark)
+                            .frame(minHeight: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                    .accessibilityAddTraits(model.minMonths == m ? .isSelected : [])
+                }
+                Spacer()
+                if model.scanned {
+                    Text(String(format: t("%d apps · %@ reclaimable"),
+                                model.filtered.count, formatBytes(model.reclaimable)))
+                        .font(Theme.mono(13, .bold)).foregroundStyle(Theme.neon)
+                        .shadow(color: Theme.neon.opacity(0.5), radius: 5)
+                }
+            }
+        }
+    }
+
+    private var listPanel: some View {
+        TerminalPanel(title: String(format: t("CANDIDATES — %d"), model.filtered.count), id: "unused.list") {
+            if model.filtered.isEmpty && model.scanned && !model.scanning {
+                Text(t("nothing unused at this threshold ✓"))
+                    .font(Theme.body).foregroundStyle(Theme.neonDim)
+            }
+            LazyVStack(alignment: .leading, spacing: 4) {
+                ForEach(model.filtered) { app in
+                    row(app)
+                }
+            }
+        }
+    }
+
+    private func row(_ app: UnusedApp) -> some View {
+        HStack(spacing: 10) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
+                .resizable().frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(app.name).font(Theme.body).foregroundStyle(Theme.gray).lineLimit(1)
+                Text(app.lastUsed.map { Self.df.string(from: $0) } ?? t("never opened"))
+                    .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+            }
+            Spacer()
+            if let d = app.daysUnused {
+                Text(d >= 365
+                     ? String(format: t("%d years"), d / 365)
+                     : String(format: t("%d months"), max(1, d / 30)))
+                    .font(Theme.mono(11, .bold))
+                    .foregroundStyle(d > 180 ? Theme.amber : Theme.grayDark)
+                    .frame(width: 80, alignment: .trailing)
+            }
+            Text(formatBytes(app.size))
+                .font(Theme.mono(12, .bold))
+                .foregroundStyle(app.size > 1_000_000_000 ? Theme.neon : Theme.gray)
+                .frame(width: 80, alignment: .trailing)
+            Button { model.reveal(app) } label: {
+                Text(t("[ FINDER ]")).font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+                    .frame(minHeight: 24).contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            Button { onUninstall(app.bundleID) } label: {
+                Text(t("[ UNINSTALL ]"))
+                    .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neon)
+                    .padding(.vertical, 4).padding(.horizontal, 7)
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .help(t("Opens it in the uninstaller with all its leftovers"))
+        }
+    }
+}

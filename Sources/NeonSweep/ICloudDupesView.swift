@@ -26,11 +26,11 @@ struct ICloudDupesView: View {
     private var header: some View {
         HStack(spacing: 6) {
             Text("david@mac:~$").font(Theme.mono(14, .bold)).foregroundStyle(Theme.gray)
-            Text("neonsweep --icloud-dupes").font(Theme.mono(14, .bold)).foregroundStyle(Theme.neon)
+            Text("neonsweep --dupes").font(Theme.mono(14, .bold)).foregroundStyle(Theme.neon)
             if !model.scanning { BlinkingCursor() }
             Spacer()
             Button { model.scan() } label: {
-                Text(model.scanning ? t("[ SCANNING… ]") : t("[ SCAN ICLOUD DRIVE ]"))
+                Text(model.scanning ? t("[ SCANNING… ]") : t("[ SCAN ]"))
                     .font(Theme.mono(12, .bold))
                     .foregroundStyle(model.scanning ? Theme.grayDark : Theme.neon)
             }
@@ -39,9 +39,35 @@ struct ICloudDupesView: View {
         }
     }
 
+    private var scopeRow: some View {
+        HStack(spacing: 6) {
+            Text(t("where:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            ForEach(DupeScope.allCases, id: \.rawValue) { s in
+                Button {
+                    if s == .custom { model.chooseFolder() } else { model.setScope(s) }
+                } label: {
+                    Text("[\(s.label)]")
+                        .font(Theme.mono(10, model.scope == s ? .bold : .regular))
+                        .foregroundStyle(model.scope == s ? Theme.neon : Theme.grayDark)
+                        .frame(minHeight: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .disabled(model.scanning)
+                .accessibilityAddTraits(model.scope == s ? .isSelected : [])
+            }
+            Spacer()
+            Text(model.rootPath.replacingOccurrences(
+                of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
+                .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+                .lineLimit(1).truncationMode(.middle)
+        }
+    }
+
     private var summaryPanel: some View {
-        TerminalPanel(title: t("EXACT FILE DUPLICATES IN ICLOUD DRIVE"), id: "icloud.summary") {
-            Text(t("// SHA-256 over downloaded files ≥1 MB; deleting frees space here AND in the cloud after sync. Not-downloaded files are skipped (hashing them would download everything)."))
+        TerminalPanel(title: t("EXACT FILE DUPLICATES"), id: "icloud.summary") {
+            scopeRow
+            Text(t("// SHA-256 over files ≥1 MB; app bundles, libraries and caches are skipped. In iCloud, not-downloaded files are skipped too (hashing them would download everything)."))
                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             HStack(spacing: 20) {
                 if model.scanned {
@@ -111,8 +137,9 @@ struct ICloudDupesView: View {
     private func fileRow(_ f: String, group g: FileDupeGroup) -> some View {
         let isKeep = f == g.keep
         let isSel = model.checked.contains(f)
-        let display = f.replacingOccurrences(
-            of: FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Mobile Documents/", with: "")
+        let display = f
+            .replacingOccurrences(of: model.rootPath + "/", with: "")
+            .replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
         return HStack(spacing: 8) {
             if isKeep {
                 Text("★").font(Theme.body).foregroundStyle(Theme.neonDim)
