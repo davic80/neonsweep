@@ -372,3 +372,8 @@
 "[ NONE ]" = "[ NINGUNO ]";
 "Select all / none" = "Seleccionar todo / nada";
 "// click to mark · shift-click for a range" = "// clic para marcar · Shift+clic para un rango";
+"Owned by root: the app ran with privileges. Deleting asks for admin and is PERMANENT." = "Propiedad de root: la app se ejecutó con privilegios. Borrarlo pide admin y es PERMANENTE.";
+"Some items are owned by root" = "Algunos elementos son propiedad de root";
+"Delete (asks for admin)" = "Borrar (pedirá admin)";
+"Items marked (admin) were created by an app running with privileges. They cannot go to the Trash: deleting them is PERMANENT and needs your password." = "Los marcados (admin) los creó una app con privilegios. No pueden ir a la Papelera: borrarlos es PERMANENTE y pide tu contraseña.";
+"WARN: could not delete: %@" = "AVISO: no se pudo borrar: %@";

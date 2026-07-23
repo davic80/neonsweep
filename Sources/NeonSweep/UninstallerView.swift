@@ -3,6 +3,7 @@ import SwiftUI
 struct UninstallerView: View {
     @ObservedObject var model: UninstallerModel
     @State private var confirming = false
+    @State private var confirmingOrphans = false
     @State private var orphanAnchor: String?      // última fila clicada (huérfanos)
     @State private var leftoverAnchor: UUID?      // última fila clicada (restos)
 
@@ -244,7 +245,10 @@ struct UninstallerView: View {
                     .map(\.size).reduce(0, +)
                 Text("\(model.orphanChecked.count) " + t("checked =") + " \(formatBytes(checkedSize))")
                     .font(Theme.body).foregroundStyle(Theme.gray)
-                Button { model.trashCheckedOrphans() } label: {
+                Button {
+                    if model.checkedOrphansNeedAdmin { confirmingOrphans = true }
+                    else { model.trashCheckedOrphans() }
+                } label: {
                     Text(t("[ MOVE TO TRASH ]"))
                         .font(Theme.mono(13, .bold))
                         .foregroundStyle(model.orphanChecked.isEmpty ? Theme.grayDark : Theme.neon)
@@ -254,6 +258,17 @@ struct UninstallerView: View {
                 }
                 .buttonStyle(NeonClick())
                 .disabled(model.orphanChecked.isEmpty)
+                .confirmationDialog(
+                    t("Some items are owned by root"),
+                    isPresented: $confirmingOrphans
+                ) {
+                    Button(t("Delete (asks for admin)"), role: .destructive) {
+                        model.trashCheckedOrphans()
+                    }
+                    Button(t("Cancel"), role: .cancel) {}
+                } message: {
+                    Text(t("Items marked (admin) were created by an app running with privileges. They cannot go to the Trash: deleting them is PERMANENT and needs your password."))
+                }
             }
         }
         .padding(18)
@@ -321,6 +336,10 @@ struct UninstallerView: View {
                 .font(Theme.small).foregroundStyle(Theme.gray)
                 .lineLimit(1).truncationMode(.middle)
                 .help(o.path)
+            if o.needsAdmin {
+                Text("(admin)").font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
+                    .help(t("Owned by root: the app ran with privileges. Deleting asks for admin and is PERMANENT."))
+            }
             Spacer()
             Text(formatBytes(o.size))
                 .font(Theme.small)

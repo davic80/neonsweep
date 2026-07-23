@@ -31,6 +31,10 @@ struct OrphanEntry: Identifiable {
     let location: String
     let bundleID: String
     let size: Int64
+    /// Pertenece a otro usuario (normalmente root: la app se ejecutó con
+    /// privilegios y dejó ficheros que tu usuario no puede mover a la
+    /// papelera). Requiere autorización de administrador y es permanente.
+    var needsAdmin = false
 }
 
 enum MatchKind { case appBundle, bundleID, family, name }
@@ -527,11 +531,19 @@ final class UninstallerModel: ObservableObject {
                     ? ScanModel.directorySize(URL(fileURLWithPath: full))
                     : ((try? fm.attributesOfItem(atPath: full))?[.size] as? Int64 ?? 0)
                 guard size > 0 else { continue }
+                // ¿De otro usuario? Entonces la papelera no puede con ello
+                let owner = (try? fm.attributesOfItem(atPath: full))?[.ownerAccountID] as? NSNumber
+                let needsAdmin = owner.map { $0.uint32Value != getuid() } ?? false
                 out.append(OrphanEntry(path: full, location: locName,
-                                       bundleID: candidate, size: size))
+                                       bundleID: candidate, size: size,
+                                       needsAdmin: needsAdmin))
             }
         }
         return out
+    }
+
+    var checkedOrphansNeedAdmin: Bool {
+        orphans.contains { orphanChecked.contains($0.id) && $0.needsAdmin }
     }
 
     func trashCheckedOrphans() {
@@ -539,23 +551,45 @@ final class UninstallerModel: ObservableObject {
         guard !targets.isEmpty else { return }
         Task {
             var freed: Int64 = 0
-            var failed = 0
-            for t in targets {
+            var doneIDs: Set<String> = []
+            var failures: [String] = []
+
+            // 1) Los del usuario, a la papelera (recuperables)
+            for t in targets where !t.needsAdmin {
                 do {
                     try await NSWorkspace.shared.recycle([URL(fileURLWithPath: t.path)])
                     freed += t.size
+                    doneIDs.insert(t.id)
                 } catch {
-                    failed += 1
+                    failures.append((t.path as NSString).lastPathComponent)
+                    AppLog.log("ORPHAN: falló papelera para \(t.path): \(error.localizedDescription)")
                 }
             }
             FreedTracker.shared.addTrashed(freed)
+
+            // 2) Los de root, con una sola autorización (borrado permanente:
+            // no existe papelera para ficheros de otro usuario)
+            let adminTargets = targets.filter(\.needsAdmin)
+            if !adminTargets.isEmpty {
+                let cmd = "rm -rf " + adminTargets.map { AdminOps.quoted($0.path) }.joined(separator: " ")
+                if let err = AdminOps.run(cmd) {
+                    AppLog.log("ORPHAN admin: \(err)")
+                    failures.append("(admin)")
+                } else {
+                    let adminFreed = adminTargets.map(\.size).reduce(0, +)
+                    FreedTracker.shared.addPurged(adminFreed)
+                    freed += adminFreed
+                    doneIDs.formUnion(adminTargets.map(\.id))
+                    AppLog.log("ORPHAN admin: \(adminTargets.count) elementos eliminados")
+                }
+            }
+
             TrashModel.shared.refresh()
-            orphans.removeAll { orphanChecked.contains($0.id) && failed == 0 }
-            lastResult = failed == 0
-                ? String(format: t("OK: %d items → Trash (%@)"), targets.count, formatBytes(freed))
-                : String(format: t("WARN: %d items could not be moved (in use?)"), failed)
-            if failed > 0 { scanOrphans() }
-            orphanChecked = []
+            orphans.removeAll { doneIDs.contains($0.id) }
+            orphanChecked.subtract(doneIDs)
+            lastResult = failures.isEmpty
+                ? String(format: t("OK: %d items → Trash (%@)"), doneIDs.count, formatBytes(freed))
+                : String(format: t("WARN: could not delete: %@"), failures.joined(separator: ", "))
         }
     }
 
