@@ -50,6 +50,10 @@ It prints disk usage and reclaimable space per category, then exits. **It never 
 
 `--bench-video <file> [seconds]` measures the video transcoder against a loose file — never the photo library, where converting deletes the original. It reports decode-only cost, speed-priority encoding and N concurrent jobs, and is how the "parallel does not help" claim below was established.
 
+### Releases
+
+Tagging `vX.Y.Z` builds the app, publishes the DMG, and bumps the Homebrew cask in [davic80/homebrew-neonsweep](https://github.com/davic80/homebrew-neonsweep) — computing the sha256 from the *published* DMG, not the freshly built one. The cask step needs a `HOMEBREW_TAP_TOKEN` secret (a fine-grained PAT scoped to the tap with Contents: Read and write); without it the step is skipped with a warning and the cask is updated by hand.
+
 ### Homebrew
 
 ```sh

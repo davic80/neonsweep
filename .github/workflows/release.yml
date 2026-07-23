@@ -33,3 +33,64 @@ jobs:
           body: |
             ⚠️ Unsigned build (ad-hoc). First launch: right-click → Open,
             or run `xattr -dr com.apple.quarantine /Applications/NeonSweep.app`.
+
+  # El cask vive en otro repo (el tap), así que necesita su propio token:
+  # HOMEBREW_TAP_TOKEN, un PAT fine-grained acotado a davic80/homebrew-neonsweep
+  # con Contents: Read and write. Sin ese secreto este job se salta sin fallar,
+  # y el cask se actualiza a mano como antes.
+  tap:
+    name: Update Homebrew cask
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for token
+        id: gate
+        run: |
+          if [ -n "${{ secrets.HOMEBREW_TAP_TOKEN }}" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::HOMEBREW_TAP_TOKEN no configurado; el cask sigue a mano"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout tap
+        if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: davic80/homebrew-neonsweep
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      # El sha256 se calcula sobre el DMG YA PUBLICADO, no sobre el que se
+      # acaba de compilar: es el fichero que la gente va a descargar de verdad.
+      - name: Bump cask to ${{ github.ref_name }}
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          URL="https://github.com/davic80/neonsweep/releases/download/${TAG}/NeonSweep-${TAG}.dmg"
+
+          for i in 1 2 3 4 5; do
+            if curl -fsSL -o dmg "$URL"; then break; fi
+            echo "esperando a que el asset esté disponible ($i/5)…"; sleep 15
+          done
+          test -s dmg
+
+          SHA=$(shasum -a 256 dmg | cut -d' ' -f1)
+          echo "$TAG → $SHA"
+
+          sed -i -E "s/^  version \".*\"/  version \"${VERSION}\"/" Casks/neonsweep.rb
+          sed -i -E "s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" Casks/neonsweep.rb
+
+          grep -q "\"${VERSION}\"" Casks/neonsweep.rb
+          grep -q "\"${SHA}\"" Casks/neonsweep.rb
+          rm -f dmg
+
+          if git diff --quiet; then
+            echo "el cask ya estaba en ${VERSION}"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "neonsweep ${VERSION}"
+          git push
