@@ -382,3 +382,5 @@
 "[ hide %d helpers ]" = "[ ocultar %d auxiliares ]";
 "URL handlers and background agents: the system launches them, so they never register a last-opened date" = "Manejadores de URL y agentes en segundo plano: los lanza el sistema, así que nunca registran última apertura";
 "Auxiliary app: launched by the system, not by you — \"unused\" does not mean removable" = "App auxiliar: la lanza el sistema, no tú — \"sin usar\" no significa prescindible";
+"Component of another tool (URL handler or background agent)" = "Componente de otra herramienta (manejador de URL o agente en segundo plano)";
+"// auxiliary component: removing it breaks the feature it serves, not the main app" = "// componente auxiliar: quitarlo rompe la función que da servicio, no la app principal";

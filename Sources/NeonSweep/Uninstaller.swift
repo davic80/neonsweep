@@ -11,6 +11,9 @@ struct InstalledApp: Identifiable, Hashable {
     var appSize: Int64 = -1     // -1 = calculando
     var dataSize: Int64 = -1    // estimación rápida de datos en ~/Library
     var hasLoginItem = false    // tiene LaunchAgent → arranca al iniciar sesión
+    /// Componente auxiliar (manejador de URLs, agente sin Dock): es una app
+    /// desinstalable, pero pertenece a otra herramienta.
+    var isHelper = false
     var isApple: Bool { bundleID.hasPrefix("com.apple.") }
 
     var totalSize: Int64 { max(0, appSize) + max(0, dataSize) }
@@ -201,7 +204,8 @@ final class UninstallerModel: ObservableObject {
                 // Safari es la excepción: protegida aunque viva en /Applications.
                 if bid == "com.apple.Safari" { continue }
                 let name = (n as NSString).deletingPathExtension
-                result.append(InstalledApp(id: path, name: name, bundleID: bid, path: path))
+                result.append(InstalledApp(id: path, name: name, bundleID: bid, path: path,
+                                           isHelper: UnusedAppsModel.isHelperApp(path)))
             }
         }
         return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }

@@ -61,6 +61,10 @@ struct UninstallerView: View {
                                     Text("").font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
                                         .help(t("Apple app — removable, reinstall from App Store"))
                                 }
+                                if app.isHelper {
+                                    Text("aux").font(Theme.mono(8, .bold)).foregroundStyle(Theme.amber)
+                                        .help(t("Component of another tool (URL handler or background agent)"))
+                                }
                                 Spacer()
                                 if app.sized && app.totalSize > 0 {
                                     Text(formatBytes(app.totalSize))
@@ -156,6 +160,10 @@ struct UninstallerView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(app.name).font(Theme.mono(17, .bold)).foregroundStyle(Theme.neon)
                         Text(app.bundleID).font(Theme.small).foregroundStyle(Theme.grayDark)
+                        if app.isHelper {
+                            Text(t("// auxiliary component: removing it breaks the feature it serves, not the main app"))
+                                .font(Theme.mono(10)).foregroundStyle(Theme.amber)
+                        }
                     }
                     Spacer()
                     if app.isRunning {
