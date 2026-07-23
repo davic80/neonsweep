@@ -2,6 +2,11 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.7.1] — 2026-07-24
+
+### Fixed
+- **The per-video sheet still greyed out `[ CONVERT ]` during a conversion** instead of queueing. 0.7.0 taught the batch button to queue but missed this one, so clicking a video's name mid-conversion led to a dead button — the exact problem the queue was meant to remove. Both profile cards now read `[ QUEUE ]` in amber and stay clickable. (`disabled` there still means "this profile gains nothing on this video", which is a different thing and stays.)
+
 ## [0.7.0] — 2026-07-24
 
 ### Added

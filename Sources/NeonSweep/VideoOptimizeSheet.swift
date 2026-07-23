@@ -88,19 +88,26 @@ struct VideoOptimizeSheet: View {
                     }
                 }
                 Spacer()
+                // Con una conversión en marcha esto NO se apaga: encola,
+                // igual que el botón de lote. `disabled` aquí es "este perfil
+                // no aporta nada a este vídeo", que es otra cosa.
+                let queueing = model.optimizing
                 Button {
                     model.optimizeVideo(pa, profile: profile)
                     dismiss()
                 } label: {
-                    Text(t("[ CONVERT ]"))
+                    Text(queueing ? t("[ QUEUE ]") : t("[ CONVERT ]"))
                         .font(Theme.mono(12, .bold))
-                        .foregroundStyle(disabled || model.optimizing ? Theme.grayDark : Theme.neon)
+                        .foregroundStyle(disabled ? Theme.grayDark
+                                                  : (queueing ? Theme.amber : Theme.neon))
                         .padding(.vertical, 5).padding(.horizontal, 8)
                         .overlay(RoundedRectangle(cornerRadius: 4).stroke(
-                            disabled || model.optimizing ? Theme.border : Theme.neon, lineWidth: 1))
+                            disabled ? Theme.border : (queueing ? Theme.amber : Theme.neon),
+                            lineWidth: 1))
                 }
                 .buttonStyle(NeonClick())
-                .disabled(disabled || model.optimizing)
+                .disabled(disabled)
+                .help(queueing ? t("Adds it to the queue — it starts when the current one finishes") : "")
             }
         }
     }

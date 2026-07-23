@@ -426,3 +426,5 @@
 "Adds them to the queue — they start when the current one finishes" = "Los añade a la cola — empiezan cuando termine la actual";
 "Remove from queue" = "Quitar de la cola";
 "%d items" = "%d elementos";
+"[ QUEUE ]" = "[ A LA COLA ]";
+"Adds it to the queue — it starts when the current one finishes" = "Lo añade a la cola — empieza cuando termine la actual";
