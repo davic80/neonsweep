@@ -172,10 +172,7 @@ struct RootView: View {
                             .foregroundStyle(selected == m ? Theme.neon : Theme.gray)
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
-                        Spacer(minLength: 6)
-                        Text("⌘\(idx + 1)")
-                            .font(Theme.mono(9))
-                            .foregroundStyle(Theme.grayDark)
+                        Spacer(minLength: 0)
                     }
                     .font(Theme.mono(13, selected == m ? .bold : .regular))
                     .padding(.vertical, 6)
@@ -183,6 +180,7 @@ struct RootView: View {
                 }
                 .buttonStyle(NeonClick())
                 .keyboardShortcut(KeyEquivalent(Character("\(idx + 1)")), modifiers: .command)
+                .help("⌘\(idx + 1)")
                 .accessibilityAddTraits(selected == m ? .isSelected : [])
             }
             // ⌘R: re-escanea/actualiza el módulo activo
@@ -246,12 +244,11 @@ struct RootView: View {
             }
             .padding(.top, 10)
         }
-        .padding(20)
-        // El ancho lo marca el elemento más largo (p. ej. "ACTUALIZACIONES"),
-        // con un mínimo que escala con el tamaño de texto: así nada se corta
-        // ni se parte en dos líneas, sea cual sea el idioma o la escala.
+        .padding(.horizontal, 14).padding(.vertical, 18)
+        // Se ajusta al elemento más largo (p. ej. "ACTUALIZACIONES") sin pasarse:
+        // los atajos ⌘n viven en el tooltip, no en la fila, para no ensancharlo.
         .fixedSize(horizontal: true, vertical: false)
-        .frame(minWidth: 240 * Theme.scaleFactor, maxWidth: 420, alignment: .leading)
+        .frame(minWidth: 190 * Theme.scaleFactor, maxWidth: 320, alignment: .leading)
         .background(Theme.bg)
     }
 

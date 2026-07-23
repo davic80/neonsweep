@@ -334,12 +334,14 @@ final class UninstallerModel: ObservableObject {
         // apps que SÍ están instaladas (WhatsAppSMB con WhatsApp instalado).
         let installed = apps.map(\.bundleID)
         let names = apps.map(\.name)
+        let appPaths = apps.map(\.path)
         Task {
             let found = await Task.detached(priority: .userInitiated) {
                 // Incluye las apps del sistema (/System/Applications): Atajos,
                 // TV, Música… no salen en la lista pero reclaman sus datos
                 Self.findOrphans(installedBundleIDs: installed + Self.systemAppBundleIDs(),
-                                 installedNames: names)
+                                 installedNames: names,
+                                 claimedGroups: Self.claimedAppGroups(appPaths: appPaths))
             }.value
             self.orphans = found.sorted { $0.size > $1.size }
             self.orphanScanning = false
@@ -408,11 +410,18 @@ final class UninstallerModel: ObservableObject {
     /// 3. Identificadores del sistema (Apple, Atajos, TV, CUPS…) → nunca.
     nonisolated static func isOrphan(_ candidate: String,
                                      installedBundleIDs: [String],
-                                     installedNames: [String] = []) -> Bool {
+                                     installedNames: [String] = [],
+                                     claimedGroups: Set<String> = []) -> Bool {
         // Normalizar quitando "group."/"systemgroup." para comparar de verdad
         var bare = candidate.lowercased()
         for p in ["group.", "systemgroup."] where bare.hasPrefix(p) {
             bare = String(bare.dropFirst(p.count))
+        }
+        // 0. Grupo reclamado por una app instalada (fuente de verdad)
+        let lower = candidate.lowercased()
+        if claimedGroups.contains(lower) || claimedGroups.contains("group." + bare) { return false }
+        if claimedGroups.contains(where: { $0.hasPrefix(lower + ".") || lower.hasPrefix($0 + ".") }) {
+            return false
         }
         // 3. Identificadores del sistema
         if systemVendors.contains(where: { bare == $0 || bare.hasPrefix($0 + ".") }) { return false }
@@ -443,6 +452,31 @@ final class UninstallerModel: ObservableObject {
         return true
     }
 
+    /// Grupos de aplicación declarados en los entitlements de las apps
+    /// instaladas. Es la ÚNICA fuente fiable para los Group Containers: una app
+    /// puede reclamar un grupo con nombre de otro fabricante (WhatsApp declara
+    /// `group.com.facebook.family`, que por nombre parecería huérfano).
+    nonisolated static func claimedAppGroups(appPaths: [String]) -> Set<String> {
+        var out: Set<String> = []
+        for path in appPaths {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+            p.arguments = ["-d", "--entitlements", "-", "--xml", path]
+            let pipe = Pipe()
+            p.standardOutput = pipe
+            p.standardError = Pipe()
+            guard (try? p.run()) != nil else { continue }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            guard let plist = try? PropertyListSerialization.propertyList(
+                from: data, format: nil) as? [String: Any],
+                  let groups = plist["com.apple.security.application-groups"] as? [String]
+            else { continue }
+            out.formUnion(groups.map { $0.lowercased() })
+        }
+        return out
+    }
+
     /// Bundle IDs de las apps del sistema, que no viven en /Applications.
     nonisolated static func systemAppBundleIDs() -> [String] {
         let fm = FileManager.default
@@ -460,7 +494,8 @@ final class UninstallerModel: ObservableObject {
     }
 
     nonisolated static func findOrphans(installedBundleIDs: [String],
-                                        installedNames: [String] = []) -> [OrphanEntry] {
+                                        installedNames: [String] = [],
+                                        claimedGroups: Set<String> = []) -> [OrphanEntry] {
         let fm = FileManager.default
         var out: [OrphanEntry] = []
         for (locName, locPath) in locations {
@@ -477,7 +512,8 @@ final class UninstallerModel: ObservableObject {
                 guard parts.count >= 3, parts[0].count <= 6,
                       parts[0].allSatisfy(\.isLetter) else { continue }
                 guard Self.isOrphan(lower, installedBundleIDs: installedBundleIDs,
-                                    installedNames: installedNames) else { continue }
+                                    installedNames: installedNames,
+                                    claimedGroups: claimedGroups) else { continue }
                 let full = "\(locPath)/\(entry)"
                 var isDir: ObjCBool = false
                 fm.fileExists(atPath: full, isDirectory: &isDir)
