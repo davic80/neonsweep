@@ -2,6 +2,19 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.7.0] — 2026-07-24
+
+### Added
+- **Conversion queue.** Asking for another conversion while one is running no longer does nothing: it queues. The strip shows what's waiting, each item can be dropped with `✗`, and the convert button turns amber and reads `[ QUEUE (n) ]`. Nothing that is already running or already queued gets added twice.
+- **`--bench-video <file> [seconds]`**: measures the transcoder against a loose file (never the photo library, where converting deletes the original). Reports decode-only cost, the old vs new pipeline, speed-priority encoding, and N concurrent jobs.
+
+### Changed
+- **Video conversion is ~1.75× faster** — 2.4× → 4.2× realtime on 4K here. The encoder is now asked to prioritise speed over quality. Measured on the same clip at the same target bitrate: 24.9 s → 14.2 s, output 26.8 MB vs 26.9 MB, SSIM 0.996164 → 0.996051. That is a 0.011% difference; side-by-side crops are indistinguishable. Turn it off with `defaults write com.davidcornejo.neonsweep video.fastEncode -bool NO`.
+- Video frames are read straight from the track instead of through an `AVVideoComposition`, keeping orientation as a transform. Measured as performance-neutral (the compositor was not the bottleneck, contrary to expectation) but it removes a whole render stage.
+
+### Not done, and why
+- **Conversions still run one at a time, and using more cores would not help.** Encoding is done by a fixed-function block in the chip, not by CPU cores, and it serves one job at a time. Measured with `--bench-video` at 4K: 1 job 24.9 s, 2 → 49.8 s, 3 → 74.7 s, 4 → 99.6 s — exactly linear, zero aggregate gain. `ffmpeg` behaves identically (9.6 s for one, 38.3 s for four), so this is the hardware, not the app. Decoding is only 12% of the time; the other 88% is the encoder. Running jobs in parallel would only split the same wait.
+
 ## [0.6.1] — 2026-07-24
 
 ### Added

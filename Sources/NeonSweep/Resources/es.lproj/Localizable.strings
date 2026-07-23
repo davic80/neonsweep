@@ -419,3 +419,10 @@
 "// that's the last unmarked copy" = "// esa es la última copia sin marcar";
 "%d twin groups" = "%d grupos de gemelos";
 "// same capture date, duration, resolution and size — always compare first" = "// misma fecha de captura, duración, resolución y peso — compara siempre antes";
+
+/* cola de conversiones */
+"[ QUEUE — %d ]" = "[ COLA — %d ]";
+"[ QUEUE (%d) ]" = "[ A LA COLA (%d) ]";
+"Adds them to the queue — they start when the current one finishes" = "Los añade a la cola — empiezan cuando termine la actual";
+"Remove from queue" = "Quitar de la cola";
+"%d items" = "%d elementos";

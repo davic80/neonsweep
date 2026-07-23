@@ -1,5 +1,6 @@
 import Photos
 import AVFoundation
+import VideoToolbox
 import CoreImage
 import CoreMedia
 import ImageIO
@@ -16,6 +17,9 @@ extension PhotosModel {
         let height: Int
         let bitrate: Int          // bits/s de vídeo
         let estBytes: Int64       // estimación del resultado
+        /// Reducción respecto al original (1 = misma resolución). Se aplica
+        /// sobre el tamaño natural de la pista, que puede venir girado.
+        var scale: Double = 1
 
         /// Calcula el plan desde los metadatos del asset (sin abrir el fichero).
         nonisolated static func make(for pa: PhotoAsset, profile: VideoProfile) -> TranscodePlan {
@@ -30,6 +34,7 @@ extension PhotosModel {
             let maxPct = { let v = UserDefaults.standard.integer(forKey: "video.max.pct")
                            return v > 0 ? Double(v) / 100 : 0.12 }()
             var target: Double
+            var scale = 1.0
             switch profile {
             case .optimal:
                 // misma resolución, ~45% del bitrate original (HEVC rinde eso
@@ -39,15 +44,16 @@ extension PhotosModel {
                 // reescala a 1080p y comprime fuerte
                 let maxDim = Double(max(w, h))
                 if maxDim > 1920 {
-                    let f = 1920.0 / maxDim
-                    w = Int(Double(w) * f) & ~1   // dimensiones pares
-                    h = Int(Double(h) * f) & ~1
+                    scale = 1920.0 / maxDim
+                    w = Int(Double(w) * scale) & ~1   // dimensiones pares
+                    h = Int(Double(h) * scale) & ~1
                 }
                 target = min(max(srcBps * maxPct, 4_000_000), 10_000_000)
             }
             target = min(target, srcBps * 0.85)   // nunca apuntar por encima del original
             let est = Int64((target + 192_000) / 8.0 * seconds)   // + audio
-            return TranscodePlan(width: w, height: h, bitrate: Int(target), estBytes: est)
+            return TranscodePlan(width: w, height: h, bitrate: Int(target),
+                                 estBytes: est, scale: scale)
         }
     }
 
@@ -66,44 +72,82 @@ extension PhotosModel {
         guard let avAsset else { return nil }
         let out = FileManager.default.temporaryDirectory
             .appendingPathComponent("neonsweep-\(UUID().uuidString).mov")
-        let ok = await transcode(avAsset, to: out, plan: plan, isPaused: isPaused, progress: progress)
+        let ok = await transcode(avAsset, to: out, plan: plan, isPaused: isPaused,
+                                 progress: progress)
         if !ok { try? FileManager.default.removeItem(at: out); return nil }
         return out
     }
 
-    /// AVAssetReader → AVAssetWriter: HEVC con bitrate controlado, escala vía
-    /// composición de vídeo (respeta la orientación) y audio en passthrough.
+    /// Prioriza velocidad en el codificador. Medido en este Mac (M5, 4K, mismo
+    /// bitrate): 24,9 s → 14,2 s, y el fichero sale igual de grande (26,8 vs
+    /// 26,9 MB) con SSIM 0,996164 → 0,996051. Un 0,011% de diferencia por 1,75×
+    /// de velocidad; en las muestras es indistinguible. Se puede desactivar:
+    /// defaults write com.davidcornejo.neonsweep video.fastEncode -bool NO
+    nonisolated static var fastEncodeDefault: Bool {
+        UserDefaults.standard.object(forKey: "video.fastEncode") as? Bool ?? true
+    }
+
+    /// AVAssetReader → AVAssetWriter: HEVC con bitrate controlado y audio en
+    /// passthrough.
+    ///
+    /// Lee la pista DIRECTAMENTE, sin `AVVideoComposition`. El compositor
+    /// renderizaba cada fotograma por Core Image aunque no hubiera nada que
+    /// reescalar, y era el cuello de botella: la parte de codificación va por
+    /// hardware, pero ese render intermedio va por el camino largo. La
+    /// orientación no se pierde porque se copia `preferredTransform` al
+    /// escritor: es lo que hace el propio iPhone (los vídeos verticales son
+    /// píxeles apaisados + metadato de rotación), y si hay que reducir, escala
+    /// el codificador, que también es hardware.
     nonisolated static func transcode(_ avAsset: AVAsset, to out: URL, plan: TranscodePlan,
                                       isPaused: @escaping @Sendable () -> Bool = { false },
+                                      timeLimit: Double? = nil,   // solo para --bench-video
+                                      fastEncode: Bool = fastEncodeDefault,
                                       progress: @escaping @Sendable (Double) -> Void) async -> Bool {
         do {
             guard let vTrack = try await avAsset.loadTracks(withMediaType: .video).first else { return false }
             let duration = try await avAsset.load(.duration).seconds
             let fps = try await vTrack.load(.nominalFrameRate)
+            let natural = try await vTrack.load(.naturalSize)
+            let transform = try await vTrack.load(.preferredTransform)
+
+            // Dimensiones EN PÍXELES de la pista (no las de pantalla, que ya
+            // llevan la rotación aplicada); pares, que el codificador lo exige.
+            let encW = max(2, Int(natural.width * plan.scale) & ~1)
+            let encH = max(2, Int(natural.height * plan.scale) & ~1)
 
             let reader = try AVAssetReader(asset: avAsset)
+            if let timeLimit {
+                reader.timeRange = CMTimeRange(start: .zero,
+                                               duration: CMTime(seconds: timeLimit, preferredTimescale: 600))
+            }
             let writer = try AVAssetWriter(outputURL: out, fileType: .mov)
 
-            let comp = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: avAsset)
-            comp.renderSize = CGSize(width: plan.width, height: plan.height)
-            let vOut = AVAssetReaderVideoCompositionOutput(
-                videoTracks: [vTrack],
-                videoSettings: [kCVPixelBufferPixelFormatTypeKey as String:
-                                kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange])
-            vOut.videoComposition = comp
+            let vOut = AVAssetReaderTrackOutput(
+                track: vTrack,
+                outputSettings: [kCVPixelBufferPixelFormatTypeKey as String:
+                                 kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange])
+            vOut.alwaysCopiesSampleData = false   // sin copia extra por fotograma
             guard reader.canAdd(vOut) else { return false }
             reader.add(vOut)
 
             let vIn = AVAssetWriterInput(mediaType: .video, outputSettings: [
                 AVVideoCodecKey: AVVideoCodecType.hevc,
-                AVVideoWidthKey: plan.width,
-                AVVideoHeightKey: plan.height,
-                AVVideoCompressionPropertiesKey: [
-                    AVVideoAverageBitRateKey: plan.bitrate,
-                    AVVideoExpectedSourceFrameRateKey: Int(max(24, fps.rounded())),
-                ] as [String: Any],
+                AVVideoWidthKey: encW,
+                AVVideoHeightKey: encH,
+                AVVideoScalingModeKey: AVVideoScalingModeResizeAspect,
+                AVVideoCompressionPropertiesKey: {
+                    var p: [String: Any] = [
+                        AVVideoAverageBitRateKey: plan.bitrate,
+                        AVVideoExpectedSourceFrameRateKey: Int(max(24, fps.rounded())),
+                    ]
+                    if fastEncode {
+                        p[kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality as String] = true
+                    }
+                    return p
+                }(),
             ])
             vIn.expectsMediaDataInRealTime = false
+            vIn.transform = transform     // conserva la orientación de reproducción
             writer.add(vIn)
 
             var aOut: AVAssetReaderTrackOutput?

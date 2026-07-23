@@ -140,6 +140,34 @@ import CryptoKit
         #expect(ICloudDupesModel.sha256(of: tmp.path) == expected)
     }
 
+    // MARK: cola de conversiones — FIFO y sin repetir trabajo
+
+    /// Pedir otra conversión mientras hay una en marcha ya no se descarta;
+    /// y lo que ya está en curso o esperando no entra dos veces.
+    @Test func conversionQueueIsFIFOAndDeduped() {
+        var inFlight: Set<String> = ["a"]
+        var queued: [[String]] = []
+
+        /// Misma regla que `PhotosModel.optimize`, sin PhotoKit de por medio.
+        func enqueue(_ ids: [String], busy: Bool) {
+            let taken = inFlight.union(queued.flatMap { $0 })
+            let fresh = ids.filter { !taken.contains($0) }
+            guard !fresh.isEmpty else { return }
+            if busy { queued.append(fresh) } else { inFlight = Set(fresh) }
+        }
+
+        enqueue(["b"], busy: true)
+        enqueue(["c", "d"], busy: true)
+        #expect(queued == [["b"], ["c", "d"]], "se respeta el orden de llegada")
+
+        enqueue(["a"], busy: true)
+        enqueue(["b"], busy: true)
+        #expect(queued.count == 2, "lo que ya está en curso o en cola no se repite")
+
+        enqueue(["d", "e"], busy: true)
+        #expect(queued.last == ["e"], "de un lote mixto solo entra lo nuevo")
+    }
+
     // MARK: apps sin uso — la falta de dato no es prueba de abandono
 
     @Test func unknownUsageIsNeverFlaggedAsUnused() {

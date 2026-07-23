@@ -143,6 +143,9 @@ final class PhotosModel: ObservableObject {
     @Published var optSelected: Set<String> = []   // marcadas para OPTIMIZAR
     @Published var workingAsset: PHAsset?          // elemento en curso (miniatura)
     @Published var lastResult: String?
+    /// Lotes esperando turno y elementos de la conversión en curso.
+    @Published var queued: [OptimizeJob] = []
+    @Published var inFlightIDs: Set<String> = []
     @Published var cacheDate: Date?   // los resultados vienen de análisis guardado
 
     // Umbrales de distancia entre huellas visuales de Vision

@@ -68,6 +68,39 @@ struct PhotosView: View {
         return asc ? out.reversed() : out
     }
 
+    /// Lotes esperando turno. Van de uno en uno a propósito: el codificador es
+    /// hardware dedicado y atiende una sola conversión, así que lanzarlas a la
+    /// vez solo repartiría la misma espera.
+    private var queueStrip: some View {
+        HStack(spacing: 8) {
+            Text(String(format: t("[ QUEUE — %d ]"), model.queued.count))
+                .font(Theme.mono(10, .bold)).foregroundStyle(Theme.amber)
+            ForEach(model.queued.prefix(6)) { job in
+                HStack(spacing: 4) {
+                    Text(job.label)
+                        .font(Theme.mono(9)).foregroundStyle(Theme.gray)
+                        .lineLimit(1).truncationMode(.middle)
+                        .frame(maxWidth: 130)
+                    Button { model.dropQueued(job.id) } label: {
+                        Text("✗").font(Theme.mono(9, .bold)).foregroundStyle(Theme.grayDark)
+                            .frame(minWidth: 18, minHeight: 20).contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                    .help(t("Remove from queue"))
+                }
+                .padding(.horizontal, 5).padding(.vertical, 2)
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.border, lineWidth: 1))
+            }
+            if model.queued.count > 6 {
+                Text("+\(model.queued.count - 6)")
+                    .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+            }
+            Spacer()
+            Text("↑ " + formatBytes(model.queued.map(\.bytes).reduce(0, +)))
+                .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+        }
+    }
+
     func sortPicker(_ sel: Binding<MediaSort>, _ asc: Binding<Bool>) -> some View {
         HStack(spacing: 6) {
             Text("sort:").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
@@ -244,6 +277,7 @@ struct PhotosView: View {
                             .help(t("Finishes the current item and imports what's already converted"))
                         }
                     }
+                    if !model.queued.isEmpty { queueStrip }
                     if let d = model.cacheDate, !model.scanning {
                         Text(String(format: t("// saved results from %@ — re-analyze if the library changed"),
                                     Self.df.string(from: d)))
@@ -640,17 +674,21 @@ struct PhotosView: View {
         .accessibilityAddTraits(videoProfileRaw == value ? .isSelected : [])
     }
 
+    /// Durante una conversión ya NO se bloquea: pasa a encolar. Antes el botón
+    /// se apagaba y el clic se perdía sin decir nada.
     func optimizeButton(label: String, count: Int, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(model.optimizing ? t("[ WORKING… ]") : "\(label) (\(count))")
+        let off = count == 0
+        return Button(action: action) {
+            Text(model.optimizing ? String(format: t("[ QUEUE (%d) ]"), count) : "\(label) (\(count))")
                 .font(Theme.mono(12, .bold))
-                .foregroundStyle(count == 0 || model.optimizing ? Theme.grayDark : Theme.neon)
+                .foregroundStyle(off ? Theme.grayDark : (model.optimizing ? Theme.amber : Theme.neon))
                 .padding(.vertical, 5).padding(.horizontal, 8)
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(
-                    count == 0 || model.optimizing ? Theme.border : Theme.neon, lineWidth: 1))
+                    off ? Theme.border : (model.optimizing ? Theme.amber : Theme.neon), lineWidth: 1))
         }
         .buttonStyle(NeonClick())
-        .disabled(count == 0 || model.optimizing)
+        .disabled(off)
+        .help(model.optimizing ? t("Adds them to the queue — they start when the current one finishes") : "")
     }
 
     static let df: DateFormatter = {
