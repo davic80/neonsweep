@@ -2,6 +2,18 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.6.1] — 2026-07-24
+
+### Added
+- **Side-by-side comparison for twin videos.** `findDupeVideos` returned a flat `Set` of ids: the app knew a video had a twin but had thrown away *which one*, so it could never show it to you. It now keeps the groups (union-find, since similarity chains), and `[ compare N ]` opens an inline panel with every copy — thumbnail, filename, full timestamp, size, duration, resolution, codec and GPS — before anything is marked. The video list header shows the group count and what's reclaimable.
+
+### Fixed
+- **Twin videos could both be deleted.** Each twin had its own independent `[ delete ]` button and nothing stopped you marking every copy — you could lose the take entirely while believing you were removing a duplicate. Marking now always leaves one copy unmarked, and says so when it refuses.
+- **Twin detection produced mostly false positives.** Duration ±0.5 s + resolution + size ±2% collide constantly in vertical phone video: on this library it flagged 60 videos, and the first pair inspected was a baby from June 2021 and a doorway from July 2026 — both 1:08, 1080×1920, ~155 MB, five years apart. A real copy carries the original capture date in its metadata, so twins must now share it (±60 s). Same library: 60 videos → 1 group.
+- **The thumbnail hit-area bug was only half fixed in 0.6.0.** The RAW and video lists framed a square `AssetThumb` into a shorter rectangle from the outside, which shrinks the drawing but leaves the click region at its original height — so list thumbnails still overlapped their neighbours' rows. `AssetThumb` now takes its own width *and* height, and the video options sheet had the same defect.
+- Thumbnail size control was missing from the RAW and video lists; it only existed in duplicates. It's now in the shared sort row and drives both, with list thumbnails at half the grid size (60×37 by default, up from a fixed 44×28).
+- `thumbs:` label wrapped to three lines in the crowded RAW toolbar, and the sort buttons were being truncated to `o]`. Controls no longer shrink; the keyboard hint truncates instead.
+
 ## [0.6.0] — 2026-07-23
 
 ### Added

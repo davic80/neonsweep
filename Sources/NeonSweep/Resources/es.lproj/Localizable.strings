@@ -402,3 +402,20 @@
 "6m" = "6m";
 "d" = "d";
 "thumbs:" = "miniaturas:";
+
+/* vídeos gemelos: comparación lado a lado */
+"// HEVC ✓ = no gain · DUPE? = probable twin, compare before deleting · click the name for conversion profiles" = "// HEVC ✓ = sin ganancia · ¿DUPE? = posible gemelo, compara antes de borrar · clic en el nombre = perfiles de conversión";
+"[ compare %d ]" = "[ comparar %d ]";
+"[ hide ]" = "[ ocultar ]";
+"Show the other copies side by side before deciding" = "Muestra las otras copias lado a lado antes de decidir";
+"[✗ marked]" = "[✗ marcado]";
+"// same duration, resolution and size (±2%) — NeonSweep cannot see inside a video, so check them yourself" = "// misma duración, resolución y peso (±2%) — NeonSweep no puede ver dentro de un vídeo, compruébalas tú";
+"Frees this much if you keep only the ★ copy" = "Libera esto si solo conservas la copia ★";
+"[ ALL BUT ★ ]" = "[ TODAS MENOS ★ ]";
+"KEEP" = "SE QUEDA";
+"Keep this copy instead" = "Conservar esta en su lugar";
+"no date" = "sin fecha";
+"[ ] keep" = "[ ] conservar";
+"// that's the last unmarked copy" = "// esa es la última copia sin marcar";
+"%d twin groups" = "%d grupos de gemelos";
+"// same capture date, duration, resolution and size — always compare first" = "// misma fecha de captura, duración, resolución y peso — compara siempre antes";

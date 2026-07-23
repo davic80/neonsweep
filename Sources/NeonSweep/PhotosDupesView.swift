@@ -156,9 +156,12 @@ extension PhotosView {
 
     /// Tamaño de miniatura: en un grupo de 12 fotos casi iguales, poder
     /// agrandarlas es la diferencia entre decidir y adivinar.
-    private var thumbSizeControl: some View {
+    var thumbSizeControl: some View {
         HStack(spacing: 4) {
+            // fixedSize: en la fila de RAW no cabe y SwiftUI la partía en
+            // tres líneas ("min / iat / uras:") antes que encoger a los vecinos
             Text(t("thumbs:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                .fixedSize()
                 .padding(.leading, 10)
             Button { model.bumpThumb(-24) } label: {
                 Text("[-]").font(Theme.mono(10, .bold))
@@ -178,7 +181,8 @@ extension PhotosView {
             .accessibilityLabel(t("thumbs:") + " +")
             Text("\(Int(model.thumbSide))px")
                 .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
-                .frame(width: 36, alignment: .leading)
+                .fixedSize()
+                .frame(width: 38, alignment: .leading)
         }
     }
 

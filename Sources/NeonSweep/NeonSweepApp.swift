@@ -148,7 +148,7 @@ struct RootView: View {
                     AppLog.setProfile(!AppLog.profileEnabled)
                     dbg = AppLog.profileEnabled
                 } label: {
-                    Text("v0.6.0 // mac cleaner" + (dbg ? " [dbg]" : ""))
+                    Text("v0.6.1 // mac cleaner" + (dbg ? " [dbg]" : ""))
                         .font(Theme.mono(10))
                         .foregroundStyle(dbg ? Theme.amber : Theme.grayDark)
                         .contentShape(Rectangle())

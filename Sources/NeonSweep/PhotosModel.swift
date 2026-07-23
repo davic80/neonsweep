@@ -33,6 +33,19 @@ enum VideoProfile {
     case aggressive   // 1080p + compresión fuerte
 }
 
+/// Grupo de vídeos que parecen la misma toma. Al contrario que los grupos de
+/// fotos, aquí no hay huella visual: la sospecha viene de duración, resolución
+/// y peso. Por eso se enseñan lado a lado y no se marca nada por ti.
+struct VideoTwinGroup: Identifiable {
+    let id: String              // = keepID, estable entre re-escaneos
+    var members: [PhotoAsset]   // de mayor a menor peso
+    var keepID: String
+    /// Lo que se libera si borras todas menos la que se conserva.
+    var reclaimable: Int64 {
+        members.filter { $0.id != keepID }.map(\.fileSize).reduce(0, +)
+    }
+}
+
 /// Nivel de parecido dentro de un grupo (según la peor distancia interna).
 enum DupeTier {
     case exact      // duplicadas (~100%)
@@ -78,7 +91,53 @@ final class PhotosModel: ObservableObject {
     @Published var groups: [DupeGroup] = []
     @Published var bigVideos: [PhotoAsset] = []
     @Published var rawPhotos: [PhotoAsset] = []
-    @Published var dupeVideoIDs: Set<String> = []   // vídeos con gemelo probable
+    /// Grupos de vídeos gemelos. `dupeVideoIDs` y `twinGroupByID` se derivan de
+    /// aquí: una sola fuente de verdad.
+    @Published var videoTwins: [VideoTwinGroup] = [] {
+        didSet {
+            dupeVideoIDs = Set(videoTwins.flatMap { $0.members.map(\.id) })
+            twinGroupByID = videoTwins.reduce(into: [:]) { acc, g in
+                for m in g.members { acc[m.id] = g.id }
+            }
+        }
+    }
+    @Published private(set) var dupeVideoIDs: Set<String> = []
+    @Published private(set) var twinGroupByID: [String: String] = [:]
+
+    func twinGroup(for id: String) -> VideoTwinGroup? {
+        guard let gid = twinGroupByID[id] else { return nil }
+        return videoTwins.first { $0.id == gid }
+    }
+
+    /// Marca/desmarca un gemelo, dejando SIEMPRE una copia sin marcar. Antes
+    /// cada gemelo tenía su propio botón de borrar y nada impedía marcar los
+    /// dos: se podía perder la toma entera creyendo que se limpiaba un
+    /// duplicado. Devuelve false si se rechazó la marca.
+    @discardableResult
+    func toggleTwin(_ id: String) -> Bool {
+        if selected.contains(id) { selected.remove(id); return true }
+        guard let g = twinGroup(for: id) else { selected.insert(id); return true }
+        let unmarked = g.members.filter { $0.id != id && !selected.contains($0.id) }
+        guard !unmarked.isEmpty else { return false }
+        selected.insert(id)
+        return true
+    }
+
+    /// El usuario decide cuál se queda; si estaba marcada, se desmarca.
+    func setTwinKeeper(_ groupID: String, to id: String) {
+        guard let idx = videoTwins.firstIndex(where: { $0.id == groupID }),
+              videoTwins[idx].members.contains(where: { $0.id == id }) else { return }
+        videoTwins[idx].keepID = id
+        selected.remove(id)
+    }
+
+    /// Marca todas las copias del grupo menos la que se conserva.
+    func markTwinsButKeeper(_ g: VideoTwinGroup) {
+        for m in g.members where m.id != g.keepID { selected.insert(m.id) }
+    }
+
+    /// Total recuperable si en cada grupo de gemelos se deja una sola copia.
+    var twinReclaimable: Int64 { videoTwins.map(\.reclaimable).reduce(0, +) }
     @Published var codecByID: [String: String] = [:]  // códec por vídeo ("HEVC ✓"…)
     @Published var selected: Set<String> = []      // marcadas para BORRAR
     @Published var optSelected: Set<String> = []   // marcadas para OPTIMIZAR
@@ -263,7 +322,7 @@ final class PhotosModel: ObservableObject {
         }
         bigVideos = cache.videoIDs.compactMap(rebuild)
         rawPhotos = cache.rawIDs.compactMap(rebuild)
-        dupeVideoIDs = Set(cache.dupeVideoIDs).intersection(phByID.keys)
+        videoTwins = Self.findVideoTwinGroups(bigVideos)
         cacheDate = cache.date
         loadVideoCodecs()
         AppLog.log("CACHE: restaurado análisis del \(cache.date) (\(groups.count) grupos, \(bigVideos.count) vídeos, \(rawPhotos.count) raws)")
@@ -333,7 +392,7 @@ final class PhotosModel: ObservableObject {
                 let knownR = Set(rawPhotos.map(\.id))
                 rawPhotos = (rawPhotos + collected.raws.filter { !knownR.contains($0.id) })
                     .sorted { $0.fileSize > $1.fileSize }
-                dupeVideoIDs = Self.findDupeVideos(bigVideos)
+                videoTwins = Self.findVideoTwinGroups(bigVideos)
                 loadVideoCodecs()
                 // Agrupar solo lo nuevo entre sí (lotes de importación)
                 let newGroups = await groupImages(collected.images, baseFraction: 0.5, span: 0.5)
@@ -381,7 +440,7 @@ final class PhotosModel: ObservableObject {
         // RAWs y vídeos disponibles en cuanto termina la lectura
         bigVideos = newVideos
         rawPhotos = newRaws
-        dupeVideoIDs = Self.findDupeVideos(newVideos)
+        videoTwins = Self.findVideoTwinGroups(newVideos)
         loadVideoCodecs()
 
         let imgMeta = images.map {
@@ -614,6 +673,11 @@ final class PhotosModel: ObservableObject {
         UserDefaults.standard.set(thumbSide, forKey: "photos.thumbSide")
     }
 
+    /// Miniatura de las filas de lista (RAW y vídeos): apaisada, la mitad de
+    /// la de la rejilla. Mismo ajuste para todo el módulo — un solo control.
+    var rowThumbWidth: CGFloat { CGFloat(thumbSide) * 0.5 }
+    var rowThumbHeight: CGFloat { (rowThumbWidth * 0.62).rounded() }
+
     func setBest(_ g: DupeGroup, to id: String) {
         guard let idx = groups.firstIndex(where: { $0.id == g.id }),
               groups[idx].members.contains(where: { $0.id == id }) else { return }
@@ -726,23 +790,52 @@ final class PhotosModel: ObservableObject {
         return (size, isRaw, primary?.originalFilename)
     }
 
-    /// Vídeos con gemelo probable: misma duración (±0,5 s), misma resolución
-    /// y tamaño idéntico al 2%. No usa Vision (los vídeos no tienen featureprint).
-    nonisolated static func findDupeVideos(_ videos: [PhotoAsset]) -> Set<String> {
-        var out: Set<String> = []
+    /// ¿Son gemelos? Misma fecha de captura, misma duración (±0,5 s), misma
+    /// resolución y tamaño idéntico al 2%. No usa Vision: los vídeos no tienen
+    /// featureprint.
+    ///
+    /// La fecha es imprescindible y se añadió tras un falso positivo real: dos
+    /// vídeos de 1:08, 1080×1920 y ~155 MB que la app daba por gemelos eran un
+    /// bebé de 2021 y una puerta de 2026. En vídeo vertical de móvil esos tres
+    /// datos coinciden constantemente. Una copia de verdad arrastra la fecha
+    /// original en los metadatos, así que las dos deben marcar la misma hora.
+    /// Sin fecha en alguna de las dos no se afirma nada.
+    nonisolated static func areTwinVideos(_ a: PhotoAsset, _ b: PhotoAsset) -> Bool {
+        guard let da = a.asset.creationDate, let db = b.asset.creationDate,
+              abs(da.timeIntervalSince(db)) < 60 else { return false }
+        return abs(a.asset.duration - b.asset.duration) < 0.5
+            && a.asset.pixelWidth == b.asset.pixelWidth
+            && a.asset.pixelHeight == b.asset.pixelHeight
+            && abs(a.fileSize - b.fileSize) < max(a.fileSize, b.fileSize) / 50
+    }
+
+    /// Grupos de vídeos gemelos. Antes esto devolvía un `Set` plano de ids: la
+    /// app sabía que un vídeo tenía gemelo pero no CUÁL, así que no podía
+    /// enseñártelo al lado ni impedir que marcaras las dos copias a la vez.
+    /// Se agrupa con union-find porque el parecido encadena (a≈b, b≈c).
+    nonisolated static func findVideoTwinGroups(_ videos: [PhotoAsset]) -> [VideoTwinGroup] {
+        var parent = Array(videos.indices)
+        func root(_ x: Int) -> Int {
+            var r = x
+            while parent[r] != r { parent[r] = parent[parent[r]]; r = parent[r] }
+            return r
+        }
         for i in videos.indices {
-            for j in (i + 1)..<videos.count {
-                let a = videos[i], b = videos[j]
-                guard abs(a.asset.duration - b.asset.duration) < 0.5,
-                      a.asset.pixelWidth == b.asset.pixelWidth,
-                      a.asset.pixelHeight == b.asset.pixelHeight,
-                      abs(a.fileSize - b.fileSize) < max(a.fileSize, b.fileSize) / 50
-                else { continue }
-                out.insert(a.id)
-                out.insert(b.id)
+            for j in (i + 1)..<videos.count where areTwinVideos(videos[i], videos[j]) {
+                let (ri, rj) = (root(i), root(j))
+                if ri != rj { parent[ri] = rj }
             }
         }
-        return out
+        var buckets: [Int: [PhotoAsset]] = [:]
+        for i in videos.indices { buckets[root(i), default: []].append(videos[i]) }
+        return buckets.values
+            .filter { $0.count > 1 }
+            .map { members in
+                let sorted = members.sorted { $0.fileSize > $1.fileSize }
+                let keep = sorted.max { bestScore($0) < bestScore($1) } ?? sorted[0]
+                return VideoTwinGroup(id: keep.id, members: sorted, keepID: keep.id)
+            }
+            .sorted { $0.reclaimable > $1.reclaimable }
     }
 
     /// Códec del vídeo ("HEVC ✓", "H.264", "ProRes"…) para mostrar en la fila.

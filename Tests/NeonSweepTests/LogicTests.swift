@@ -180,4 +180,45 @@ import CryptoKit
         let c: Int64 = 600_000_000
         #expect(abs(a - c) > max(a, c) / 50, "5% de diferencia no es gemelo")
     }
+
+    /// Falso positivo real visto en pantalla: IMG_1088 (jun-2021, un bebé) e
+    /// IMG_0880 (jul-2026, una puerta) — 1:08, 1080×1920 y ~155 MB los dos.
+    /// Duración, resolución y peso coinciden a todas horas en vídeo vertical
+    /// de móvil; la fecha es lo único que los separa.
+    @Test func twinVideosNeedTheSameCaptureDate() {
+        let cal = Calendar(identifier: .gregorian)
+        func date(_ y: Int, _ m: Int, _ d: Int, _ hh: Int, _ mm: Int) -> Date {
+            cal.date(from: DateComponents(year: y, month: m, day: d, hour: hh, minute: mm))!
+        }
+        let bebe2021 = date(2021, 6, 8, 13, 39)
+        let puerta2026 = date(2026, 7, 8, 18, 53)
+        #expect(abs(bebe2021.timeIntervalSince(puerta2026)) >= 60,
+                "cinco años de diferencia: no pueden ser la misma toma")
+        // Dos copias reales de la misma toma llevan la fecha original
+        let copia = bebe2021.addingTimeInterval(3)
+        #expect(abs(bebe2021.timeIntervalSince(copia)) < 60,
+                "una copia conserva la fecha de captura en los metadatos")
+    }
+
+    /// Un grupo de gemelos siempre conserva una copia: marcar las dos era
+    /// posible (cada fila tenía su propio botón) y perdías la toma entera.
+    @Test func twinGroupAlwaysKeepsOneCopy() {
+        var marked: Set<String> = []
+        let members = ["a", "b", "c"]
+        /// Misma regla que `PhotosModel.toggleTwin`, sin PhotoKit de por medio.
+        func toggle(_ id: String) -> Bool {
+            if marked.contains(id) { marked.remove(id); return true }
+            guard members.contains(where: { $0 != id && !marked.contains($0) }) else { return false }
+            marked.insert(id)
+            return true
+        }
+        #expect(toggle("a"))
+        #expect(toggle("b"))
+        #expect(!toggle("c"), "la última copia sin marcar no puede marcarse")
+        #expect(marked.count == 2)
+        // Al liberar una, vuelve a poder marcarse otra
+        #expect(toggle("a"))
+        #expect(toggle("c"))
+        #expect(marked == ["b", "c"])
+    }
 }

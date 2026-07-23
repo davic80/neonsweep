@@ -74,7 +74,13 @@ struct PhotosView: View {
             sortButton(t("[size]"), .size, sel, asc)
             sortButton(t("[date]"), .date, sel, asc)
             sortButton(t("[name]"), .name, sel, asc)
+            // El mismo ajuste que en duplicados: aquí también hay que mirar la
+            // miniatura para decidir, y 44 px no daban para nada.
+            thumbSizeControl
         }
+        // Los controles no se encogen: en la fila de RAW competían con el texto
+        // de ayuda y SwiftUI recortaba "[tamaño]" a "o]".
+        .fixedSize()
     }
 
     /// Clic en otra columna: la activa con su orden natural.
@@ -159,6 +165,8 @@ struct PhotosView: View {
 
     @State var showHEVC = false
     @State var navCursor: String?   // fila bajo el cursor de teclado
+    @State var expandedTwinRow: String?   // fila con la comparación abierta
+    @State var blockedTwin: String?       // aviso: era la última copia sin marcar
 
     /// Lista sobre la que actúa el teclado según la pestaña visible.
     private func keyboardList() -> [PhotoAsset] {
@@ -392,8 +400,19 @@ struct PhotosView: View {
                         count: batchVideoCount
                     ) { model.optimizeSelectedVideos(profile: batchProfile) }
                 }
-                Text(t("// HEVC ✓ = no gain · DUPE? = probable twin · click the name for conversion profiles"))
+                Text(t("// HEVC ✓ = no gain · DUPE? = probable twin, compare before deleting · click the name for conversion profiles"))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                if !model.videoTwins.isEmpty {
+                    HStack(spacing: 8) {
+                        Text(String(format: t("%d twin groups"), model.videoTwins.count))
+                            .font(Theme.mono(10, .bold)).foregroundStyle(Theme.amber)
+                        Text("↓ " + formatBytes(model.twinReclaimable))
+                            .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neon)
+                        Text(t("// same capture date, duration, resolution and size — always compare first"))
+                            .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+                        Spacer()
+                    }
+                }
                 if optimizableVideos.isEmpty {
                     Text(t("everything already in HEVC ✓"))
                         .font(Theme.body).foregroundStyle(Theme.neonDim)
@@ -403,7 +422,12 @@ struct PhotosView: View {
                 let shownVideos = Array(sorted(optimizableVideos, by: videoSort, asc: videoAsc).prefix(videoLimit))
                 LazyVStack(alignment: .leading, spacing: 3) {
                     ForEach(shownVideos) { m in
-                        assetRow(m, in: shownVideos, key: "video")
+                        VStack(alignment: .leading, spacing: 4) {
+                            assetRow(m, in: shownVideos, key: "video")
+                            if expandedTwinRow == m.id, let g = model.twinGroup(for: m.id) {
+                                twinComparison(g)
+                            }
+                        }
                             .id(m.id)
                             .background(navCursor == m.id ? Theme.bg : .clear)
                             .overlay(alignment: .leading) {
@@ -460,8 +484,11 @@ struct PhotosView: View {
                 }
                 HStack {
                     sortPicker($rawSort, $rawAsc)
+                    // La pista es lo primero que sobra si no cabe todo
                     Text(t("// Shift-click = range · ↑↓ move · space mark · ↵ preview"))
                         .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                        .lineLimit(1).truncationMode(.tail)
+                        .layoutPriority(-1)
                     Spacer()
                     Text(t("HEIC quality:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     qualityChip("85", 0.85)
@@ -515,7 +542,8 @@ struct PhotosView: View {
                 Text("[·]").font(Theme.body).foregroundStyle(Theme.grayDark)
                     .help(t("Already HEVC — recompressing won't shrink it"))
             }
-            AssetThumb(asset: m.asset, side: 44).frame(width: 44, height: 28).clipped()
+            AssetThumb(asset: m.asset,
+                       width: model.rowThumbWidth, height: model.rowThumbHeight)
                 .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
                 .help(t("Click to preview"))
             if m.asset.mediaType == .video {
@@ -545,20 +573,29 @@ struct PhotosView: View {
                     .font(Theme.mono(9, .bold))
                     .foregroundStyle(codec == "HEVC ✓" ? Theme.neonDim
                                      : (codec == nil ? Theme.grayDark : Theme.amber))
-                if model.dupeVideoIDs.contains(m.id) {
+                // Ya no se borra desde aquí: sin ver la otra copia, marcar "borrar"
+                // es a ciegas. El botón abre la comparación lado a lado.
+                if let g = model.twinGroup(for: m.id) {
                     Text(t("DUPE?"))
                         .font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
                         .help(t("Same duration, resolution and size as another video — probably a duplicate"))
-                    let isDel = model.selected.contains(m.id)
+                    let open = expandedTwinRow == m.id
                     Button {
-                        if isDel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
+                        expandedTwinRow = open ? nil : m.id
                     } label: {
-                        Text(isDel ? t("[✗ delete]") : t("[ delete ]"))
+                        Text(open ? t("[ hide ]")
+                                  : String(format: t("[ compare %d ]"), g.members.count))
                             .font(Theme.mono(9, .bold))
-                            .foregroundStyle(isDel ? Theme.amber : Theme.grayDark)
+                            .foregroundStyle(open ? Theme.neon : Theme.amber)
+                            .frame(minHeight: 22)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(NeonClick())
-                    .help(t("Mark this duplicate video for deletion"))
+                    .help(t("Show the other copies side by side before deciding"))
+                    if model.selected.contains(m.id) {
+                        Text(t("[✗ marked]"))
+                            .font(Theme.mono(9, .bold)).foregroundStyle(Theme.amber)
+                    }
                 }
             } else {
                 if m.isRaw, let ext = m.filename.map({ ($0 as NSString).pathExtension.uppercased() }),
@@ -620,7 +657,7 @@ struct PhotosView: View {
         let d = DateFormatter(); d.dateFormat = "dd-MM-yyyy"; return d
     }()
 
-    private static func duration(_ s: TimeInterval) -> String {
+    static func duration(_ s: TimeInterval) -> String {
         let m = Int(s) / 60, sec = Int(s) % 60
         return String(format: "%d:%02d", m, sec)
     }
@@ -663,8 +700,24 @@ struct PhotosView: View {
 /// Miniatura de un PHAsset vía PHImageManager (asíncrona, caché del sistema).
 struct AssetThumb: View {
     let asset: PHAsset
-    var side: CGFloat = 92
+    var width: CGFloat = 92
+    var height: CGFloat?          // nil = cuadrada
     @State private var image: NSImage?
+
+    /// Azúcar para el caso cuadrado, que es el habitual.
+    init(asset: PHAsset, side: CGFloat = 92) {
+        self.asset = asset
+        self.width = side
+        self.height = nil
+    }
+
+    init(asset: PHAsset, width: CGFloat, height: CGFloat) {
+        self.asset = asset
+        self.width = width
+        self.height = height
+    }
+
+    private var h: CGFloat { height ?? width }
 
     var body: some View {
         ZStack {
@@ -676,16 +729,17 @@ struct AssetThumb: View {
             }
         }
         // El recorte y la forma de pulsación van AQUÍ, no en quien la usa: una
-        // foto vertical con scaledToFill se sale del cuadro por arriba y por
+        // foto vertical con scaledToFill se sale del marco por arriba y por
         // abajo, y `.clipped()` recorta el dibujo pero NO el área sensible al
-        // clic. Sin esto, pulsar una miniatura activaba la vertical de la fila
-        // de al lado.
-        .frame(width: side, height: side)
+        // clic. Sin esto, pulsar una miniatura activaba la de la fila de al
+        // lado. Por lo mismo, el alto se pide aquí: enmarcar por fuera con un
+        // alto menor encoge el dibujo pero deja el área de clic desbordada.
+        .frame(width: width, height: h)
         .clipShape(RoundedRectangle(cornerRadius: 3))
         .contentShape(RoundedRectangle(cornerRadius: 3))
         .onAppear { load() }
         // Al cambiar el tamaño se vuelve a pedir con más resolución
-        .onChange(of: side) { _, _ in load() }
+        .onChange(of: width) { _, _ in load() }
     }
 
     private func load() {
@@ -693,9 +747,9 @@ struct AssetThumb: View {
         opts.deliveryMode = .opportunistic
         opts.resizeMode = .fast
         opts.isNetworkAccessAllowed = false
-        let px = side * 2   // margen para pantallas Retina
+        let scale: CGFloat = 2   // margen para pantallas Retina
         PHImageManager.default().requestImage(
-            for: asset, targetSize: CGSize(width: px, height: px),
+            for: asset, targetSize: CGSize(width: width * scale, height: h * scale),
             contentMode: .aspectFill, options: opts
         ) { img, _ in
             if let img { image = img }
