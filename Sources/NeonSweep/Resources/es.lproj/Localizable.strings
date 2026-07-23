@@ -352,3 +352,15 @@
 "Same duration, resolution and size as another video — probably a duplicate" = "Misma duración, resolución y tamaño que otro vídeo — probablemente duplicado";
 "macOS asks for confirmation; goes to \"Recently Deleted\" (30 days)" = "macOS pide confirmación; va a \"Eliminado recientemente\" (30 días)";
 "[unused time]" = "[tiempo sin usar]";
+
+/* Treemap y RAW */
+"PROPORTIONAL MAP" = "MAPA PROPORCIONAL";
+"// area = size · click to go inside · ⌘-click to mark for deletion" = "// área = tamaño · clic para entrar · ⌘+clic para marcar";
+"[ ▦ map ]" = "[ ▦ mapa ]";
+"[ ▤ list ]" = "[ ▤ lista ]";
+"Show or hide the proportional map" = "Muestra u oculta el mapa proporcional";
+"Click to go inside · ⌘-click to mark" = "Clic para entrar · ⌘+clic para marcar";
+"RAW format detected" = "Formato RAW detectado";
+"preset:" = "preajuste:";
+"Sets the threshold to %.2f" = "Fija el umbral en %.2f";
+"WARN: %@ not found in the app list" = "AVISO: %@ no está en la lista de apps";

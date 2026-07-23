@@ -87,8 +87,8 @@ final class PhotosModel: ObservableObject {
     @Published var cacheDate: Date?   // los resultados vienen de análisis guardado
 
     // Umbrales de distancia entre huellas visuales de Vision
-    private static let exactThreshold: Float = 0.25    // duplicadas
-    private static let nearThreshold: Float = 0.55     // casi duplicadas
+    nonisolated static let exactThreshold: Float = 0.25    // duplicadas
+    nonisolated static let nearThreshold: Float = 0.55     // casi duplicadas
     /// Máxima distancia que se guarda como arista; el slider no puede pasar de
     /// aquí sin re-analizar.
     nonisolated static let similarThreshold: Float = 0.80
@@ -677,6 +677,16 @@ final class PhotosModel: ObservableObject {
     // MARK: Helpers
 
     /// Tamaño, tipo y nombre del recurso original del asset.
+    /// Extensiones RAW sin UTI registrado en macOS (Sigma, Kodak, GoPro):
+    /// el UTI genérico no las cubre, así que se reconocen por extensión.
+    nonisolated static let extraRawExtensions: Set<String> = ["x3f", "kdc", "gpr", "dcs", "raw"]
+
+    nonisolated static func isRawResource(_ uti: String, filename: String) -> Bool {
+        if UTType(uti)?.conforms(to: .rawImage) == true { return true }
+        let ext = (filename as NSString).pathExtension.lowercased()
+        return extraRawExtensions.contains(ext)
+    }
+
     nonisolated static func resourceMeta(of asset: PHAsset) -> (size: Int64, isRaw: Bool, filename: String?) {
         let res = PHAssetResource.assetResources(for: asset)
         let primary = res.first {
@@ -685,7 +695,7 @@ final class PhotosModel: ObservableObject {
         let size = (primary?.value(forKey: "fileSize") as? Int64) ?? 0
         let isRaw = res.contains {
             ($0.type == .photo || $0.type == .alternatePhoto || $0.type == .fullSizePhoto)
-                && (UTType($0.uniformTypeIdentifier)?.conforms(to: .rawImage) ?? false)
+                && isRawResource($0.uniformTypeIdentifier, filename: $0.originalFilename)
         }
         return (size, isRaw, primary?.originalFilename)
     }

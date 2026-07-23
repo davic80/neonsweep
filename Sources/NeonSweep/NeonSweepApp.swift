@@ -90,13 +90,9 @@ struct RootView: View {
                         DiskMapView(model: diskMap)
                     case .unusedApps:
                         UnusedAppsView(model: unusedApps) { bundleID in
-                            // Salta al desinstalador con esa app ya seleccionada
-                            if let app = uninstaller.apps.first(where: { $0.bundleID == bundleID }) {
-                                uninstaller.inspect(app)
-                            } else {
-                                uninstaller.loadApps()
-                                uninstaller.search = bundleID
-                            }
+                            // Salta al desinstalador con esa app ya inspeccionada
+                            // (carga la lista antes si aún está vacía)
+                            uninstaller.inspect(bundleID: bundleID)
                             selected = .uninstaller
                         }
                     }

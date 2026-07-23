@@ -205,6 +205,32 @@ final class UninstallerModel: ObservableObject {
 
     // MARK: Buscar restos de una app
 
+    /// Abre una app por bundle ID, cargando la lista antes si hace falta.
+    /// Lo usa "apps sin uso" para saltar aquí con la app ya inspeccionada.
+    func inspect(bundleID: String) {
+        showingOrphans = false
+        search = ""
+        if let app = apps.first(where: { $0.bundleID == bundleID }) {
+            inspect(app)
+            return
+        }
+        Task {
+            if apps.isEmpty {
+                loadApps()
+                // Esperar a que termine la carga (máx. 5 s)
+                for _ in 0..<50 where loadingApps {
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+            }
+            if let app = apps.first(where: { $0.bundleID == bundleID }) {
+                inspect(app)
+            } else {
+                AppLog.log("UNINSTALL: no se encontró \(bundleID) en la lista de apps")
+                lastResult = String(format: t("WARN: %@ not found in the app list"), bundleID)
+            }
+        }
+    }
+
     /// Restos ordenados por tamaño (mayor primero): lo accionable arriba.
     var sortedLeftovers: [LeftoverFile] {
         leftovers.sorted { $0.size > $1.size }

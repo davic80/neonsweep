@@ -10,12 +10,13 @@ extension PhotosView {
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
             } else {
                 HStack(spacing: 6) {
-                    tierChip(t("all"), nil, count: model.groups.count)
-                    tierChip(t("DUPLICATES"), .exact, count: tierCount(.exact))
-                    tierChip(t("NEAR-DUPLICATES"), .near, count: tierCount(.near))
-                    tierChip(t("SIMILAR"), .similar, count: tierCount(.similar))
+                    Text(t("preset:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    presetChip(t("DUPLICATES"), PhotosModel.exactThreshold)
+                    presetChip(t("NEAR-DUPLICATES"), PhotosModel.nearThreshold)
+                    presetChip(t("SIMILAR"), PhotosModel.similarThreshold)
                     Spacer()
-                    let bulkTier = dupeFilter ?? .exact
+                    let bulkTier: DupeTier = model.similarity <= PhotosModel.exactThreshold ? .exact
+                        : model.similarity <= PhotosModel.nearThreshold ? .near : .similar
                     Button { model.selectAll(tier: bulkTier) } label: {
                         Text(String(format: t("[ MARK ALL: %@ ]"), tierName(bulkTier)))
                             .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neon)
@@ -54,6 +55,24 @@ extension PhotosView {
 
     /// Slider de similitud: re-agrupa al instante (las distancias ya están
     /// calculadas, no hay que volver a analizar).
+    /// Los presets mueven el slider al umbral de cada nivel: un solo control
+    /// (el umbral) con tres atajos, en vez de dos filtros compitiendo.
+    func presetChip(_ label: String, _ value: Float) -> some View {
+        let active = abs(model.similarity - value) < 0.001
+        return Button { model.setSimilarity(value) } label: {
+            Text(label)
+                .font(Theme.mono(10, active ? .bold : .regular))
+                .foregroundStyle(active ? Theme.neon : Theme.grayDark)
+                .padding(.vertical, 4).padding(.horizontal, 6)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                    active ? Theme.neon : Theme.border, lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NeonClick())
+        .accessibilityAddTraits(active ? .isSelected : [])
+        .help(String(format: t("Sets the threshold to %.2f"), value))
+    }
+
     private var similaritySlider: some View {
         HStack(spacing: 10) {
             Text(t("similarity:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)

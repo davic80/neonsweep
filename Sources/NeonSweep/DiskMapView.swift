@@ -3,6 +3,7 @@ import SwiftUI
 struct DiskMapView: View {
     @ObservedObject var model: DiskMapModel
     @State private var confirming = false
+    @AppStorage("diskmap.treemap") private var showTreemap = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -16,6 +17,7 @@ struct DiskMapView: View {
                         startPanel
                     } else {
                         breadcrumbs
+                        if showTreemap { treemapPanel }
                         treePanel
                     }
                 }
@@ -33,6 +35,14 @@ struct DiskMapView: View {
             Text("neonsweep --disk").font(Theme.mono(14, .bold)).foregroundStyle(Theme.neon)
             if !model.scanning { BlinkingCursor() }
             Spacer()
+            Button { showTreemap.toggle() } label: {
+                Text(showTreemap ? t("[ ▦ map ]") : t("[ ▤ list ]"))
+                    .font(Theme.mono(11, .bold))
+                    .foregroundStyle(showTreemap ? Theme.neon : Theme.grayDark)
+                    .frame(minHeight: 24).contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .help(t("Show or hide the proportional map"))
             Button { model.start(at: "/") } label: {
                 Text(t("[ WHOLE DISK ]"))
                     .font(Theme.mono(11)).foregroundStyle(Theme.neonDim)
@@ -83,6 +93,27 @@ struct DiskMapView: View {
                 .buttonStyle(NeonClick())
                 .keyboardShortcut(.escape, modifiers: [])
             }
+        }
+    }
+
+    // MARK: Treemap — rectángulos proporcionales al tamaño
+
+    private var treemapPanel: some View {
+        TerminalPanel(title: t("PROPORTIONAL MAP"), id: "diskmap.tree", collapsible: false) {
+            TreemapView(
+                nodes: model.current?.children ?? [],
+                checked: model.checked,
+                onTap: { node in
+                    if node.isDir { model.enter(node) } else { model.revealInFinder(node) }
+                },
+                onToggle: { node in
+                    if model.checked.contains(node.id) { model.checked.remove(node.id) }
+                    else { model.checked.insert(node.id) }
+                }
+            )
+            .frame(height: 300)
+            Text(t("// area = size · click to go inside · ⌘-click to mark for deletion"))
+                .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
         }
     }
 

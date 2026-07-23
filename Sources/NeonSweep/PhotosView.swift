@@ -325,7 +325,7 @@ struct PhotosView: View {
     private var groupSort: GroupSort { GroupSort(rawValue: groupSortRaw) ?? .saving }
 
     var filteredGroups: [DupeGroup] {
-        let base = dupeFilter.map { f in model.groups.filter { $0.tier == f } } ?? model.groups
+        let base = model.groups
         let out: [DupeGroup]
         switch groupSort {
         case .saving: out = base.sorted { $0.potentialSaving > $1.potentialSaving }
@@ -562,6 +562,12 @@ struct PhotosView: View {
                     .help(t("Mark this duplicate video for deletion"))
                 }
             } else {
+                if m.isRaw, let ext = m.filename.map({ ($0 as NSString).pathExtension.uppercased() }),
+                   !ext.isEmpty {
+                    Text(ext)
+                        .font(Theme.mono(9, .bold)).foregroundStyle(Theme.neonDim)
+                        .help(t("RAW format detected"))
+                }
                 Text("\(m.asset.pixelWidth)×\(m.asset.pixelHeight)")
                     .font(Theme.small).foregroundStyle(Theme.grayDark)
             }

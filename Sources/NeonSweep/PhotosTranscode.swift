@@ -183,7 +183,7 @@ extension PhotosModel {
         let resources = PHAssetResource.assetResources(for: asset)
         let name = resources.first?.originalFilename ?? asset.localIdentifier
         guard let rawRes = resources.first(where: {
-            UTType($0.uniformTypeIdentifier)?.conforms(to: .rawImage) ?? false
+            PhotosModel.isRawResource($0.uniformTypeIdentifier, filename: $0.originalFilename)
         }) else {
             AppLog.log("RAW \(name): sin recurso RAW entre \(resources.map(\.uniformTypeIdentifier))")
             return nil
