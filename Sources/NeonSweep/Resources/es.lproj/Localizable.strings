@@ -368,3 +368,7 @@
 "← rescan to apply" = "← re-escanea para aplicar";
 "Lower values find more duplicates but take longer" = "Valores más bajos encuentran más duplicados pero tardan más";
 "// SHA-256 over files above the size threshold; app bundles, libraries and caches are skipped. In iCloud, not-downloaded files are skipped too (hashing them would download everything)." = "// SHA-256 sobre ficheros por encima del umbral; se omiten apps, librerías y cachés. En iCloud también los no descargados (hashearlos lo descargaría todo).";
+"[1 week]" = "[1 semana]";
+"[ NONE ]" = "[ NINGUNO ]";
+"Select all / none" = "Seleccionar todo / nada";
+"// click to mark · shift-click for a range" = "// clic para marcar · Shift+clic para un rango";

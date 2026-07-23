@@ -3,6 +3,8 @@ import SwiftUI
 struct UninstallerView: View {
     @ObservedObject var model: UninstallerModel
     @State private var confirming = false
+    @State private var orphanAnchor: String?      // última fila clicada (huérfanos)
+    @State private var leftoverAnchor: UUID?      // última fila clicada (restos)
 
     var body: some View {
         HStack(spacing: 0) {
@@ -190,8 +192,28 @@ struct UninstallerView: View {
                     Text(t("ORPHANED LEFTOVERS")).font(Theme.mono(17, .bold)).foregroundStyle(Theme.neon)
                     Text(t("reverse-DNS entries whose vendor has no installed app — review before checking"))
                         .font(Theme.small).foregroundStyle(Theme.grayDark)
+                    Text(t("// click to mark · shift-click for a range"))
+                        .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                 }
                 Spacer()
+                if !model.orphans.isEmpty {
+                    Button {
+                        if model.orphanChecked.count == model.orphans.count {
+                            model.orphanChecked = []
+                        } else {
+                            model.orphanChecked = Set(model.orphans.map(\.id))
+                        }
+                    } label: {
+                        Text(model.orphanChecked.count == model.orphans.count
+                             ? t("[ NONE ]") : t("[ ALL ]"))
+                            .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
+                            .padding(.vertical, 4).padding(.horizontal, 7)
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.neon, lineWidth: 1))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                    .help(t("Select all / none"))
+                }
                 Button { model.showingOrphans = false } label: {
                     Text(t("[ CLOSE ]")).font(Theme.mono(11, .bold)).foregroundStyle(Theme.neonDim)
                 }
@@ -237,11 +259,51 @@ struct UninstallerView: View {
         .padding(18)
     }
 
+    /// Clic alterna; Shift+clic marca el rango en la lista de restos.
+    private func toggleLeftover(_ f: LeftoverFile) {
+        let list = model.sortedLeftovers
+        if NSEvent.modifierFlags.contains(.shift),
+           let anchor = leftoverAnchor,
+           let a = list.firstIndex(where: { $0.id == anchor }),
+           let b = list.firstIndex(where: { $0.id == f.id }) {
+            let marking = !model.checked.contains(f.id)
+            for item in list[min(a, b)...max(a, b)] {
+                if marking { model.checked.insert(item.id) }
+                else { model.checked.remove(item.id) }
+            }
+        } else if model.checked.contains(f.id) {
+            model.checked.remove(f.id)
+        } else {
+            model.checked.insert(f.id)
+        }
+        leftoverAnchor = f.id
+    }
+
+    /// Clic alterna; Shift+clic marca desde el último clic hasta aquí.
+    private func toggleOrphan(_ o: OrphanEntry) {
+        let list = model.orphans
+        if NSEvent.modifierFlags.contains(.shift),
+           let anchor = orphanAnchor,
+           let a = list.firstIndex(where: { $0.id == anchor }),
+           let b = list.firstIndex(where: { $0.id == o.id }) {
+            let marking = !model.orphanChecked.contains(o.id)
+            for item in list[min(a, b)...max(a, b)] {
+                if marking { model.orphanChecked.insert(item.id) }
+                else { model.orphanChecked.remove(item.id) }
+            }
+        } else if model.orphanChecked.contains(o.id) {
+            model.orphanChecked.remove(o.id)
+        } else {
+            model.orphanChecked.insert(o.id)
+        }
+        orphanAnchor = o.id
+    }
+
     private func orphanRow(_ o: OrphanEntry) -> some View {
         let isSel = model.orphanChecked.contains(o.id)
         return HStack(spacing: 8) {
             Button {
-                if isSel { model.orphanChecked.remove(o.id) } else { model.orphanChecked.insert(o.id) }
+                toggleOrphan(o)
             } label: {
                 Text(isSel ? "[x]" : "[ ]")
                     .font(Theme.body)
@@ -272,8 +334,7 @@ struct UninstallerView: View {
                 ForEach(model.sortedLeftovers) { f in
                     HStack(spacing: 8) {
                         Button {
-                            if model.checked.contains(f.id) { model.checked.remove(f.id) }
-                            else { model.checked.insert(f.id) }
+                            toggleLeftover(f)
                         } label: {
                             Text(model.checked.contains(f.id) ? "[x]" : "[ ]")
                                 .font(Theme.body)

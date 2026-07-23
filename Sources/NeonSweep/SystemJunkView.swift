@@ -4,6 +4,26 @@ struct JunkView: View {
     @ObservedObject var model: JunkModel
     var prompt = "--junk"
     @State private var confirming = false
+    @State private var anchor: UUID?     // última fila clicada (Shift+clic)
+
+    /// Clic alterna; Shift+clic marca el rango dentro de la misma categoría.
+    private func toggle(_ e: JunkEntry, in cat: JunkCategory) {
+        if NSEvent.modifierFlags.contains(.shift),
+           let anchor,
+           let a = cat.entries.firstIndex(where: { $0.id == anchor }),
+           let b = cat.entries.firstIndex(where: { $0.id == e.id }) {
+            let marking = !model.checked.contains(e.id)
+            for item in cat.entries[min(a, b)...max(a, b)] {
+                if marking { model.checked.insert(item.id) }
+                else { model.checked.remove(item.id) }
+            }
+        } else if model.checked.contains(e.id) {
+            model.checked.remove(e.id)
+        } else {
+            model.checked.insert(e.id)
+        }
+        anchor = e.id
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -77,7 +97,7 @@ struct JunkView: View {
             if model.expanded.contains(cat.id) {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(cat.entries) { e in
-                        entryRow(e)
+                        entryRow(e, cat)
                     }
                 }
                 .padding(.top, 4)
@@ -85,11 +105,10 @@ struct JunkView: View {
         }
     }
 
-    private func entryRow(_ e: JunkEntry) -> some View {
+    private func entryRow(_ e: JunkEntry, _ cat: JunkCategory) -> some View {
         HStack(spacing: 8) {
             Button {
-                if model.checked.contains(e.id) { model.checked.remove(e.id) }
-                else { model.checked.insert(e.id) }
+                toggle(e, in: cat)
             } label: {
                 Text(model.checked.contains(e.id) ? "[x]" : "[ ]")
                     .font(Theme.body)

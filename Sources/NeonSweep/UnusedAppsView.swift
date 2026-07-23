@@ -54,16 +54,16 @@ struct UnusedAppsView: View {
             }
             HStack(spacing: 12) {
                 Text(t("unused for at least:")).font(Theme.body).foregroundStyle(Theme.gray)
-                ForEach([1, 3, 6, 12], id: \.self) { m in
-                    Button { model.minMonths = m } label: {
-                        Text(m == 12 ? t("[1 year]") : String(format: t("[%d months]"), m))
-                            .font(Theme.mono(10, model.minMonths == m ? .bold : .regular))
-                            .foregroundStyle(model.minMonths == m ? Theme.neon : Theme.grayDark)
+                ForEach([7, 30, 90, 180, 365], id: \.self) { d in
+                    Button { model.minDays = d } label: {
+                        Text(thresholdLabel(d))
+                            .font(Theme.mono(10, model.minDays == d ? .bold : .regular))
+                            .foregroundStyle(model.minDays == d ? Theme.neon : Theme.grayDark)
                             .frame(minHeight: 24)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(NeonClick())
-                    .accessibilityAddTraits(model.minMonths == m ? .isSelected : [])
+                    .accessibilityAddTraits(model.minDays == d ? .isSelected : [])
                 }
                 Spacer()
                 if model.scanned {
@@ -73,6 +73,14 @@ struct UnusedAppsView: View {
                         .shadow(color: Theme.neon.opacity(0.5), radius: 5)
                 }
             }
+        }
+    }
+
+    private func thresholdLabel(_ days: Int) -> String {
+        switch days {
+        case 7:   return t("[1 week]")
+        case 365: return t("[1 year]")
+        default:  return String(format: t("[%d months]"), days / 30)
         }
     }
 

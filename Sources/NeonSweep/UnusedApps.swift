@@ -31,7 +31,7 @@ final class UnusedAppsModel: ObservableObject {
     @Published var progress = ""
     @Published var fraction: Double?
     @Published var scanned = false
-    @Published var minMonths = 3          // filtro: meses sin abrir
+    @Published var minDays = 90          // filtro: días sin abrir
     @Published var lastResult: String?
 
     /// Criterio de orden (persistido). Por defecto tamaño: es lo que se busca
@@ -40,7 +40,7 @@ final class UnusedAppsModel: ObservableObject {
     @Published var sortAsc = false
 
     var filtered: [UnusedApp] {
-        let base = apps.filter { ($0.daysUnused ?? 9_999) >= minMonths * 30 }
+        let base = apps.filter { ($0.daysUnused ?? 9_999) >= minDays }
         let out = sortBySize
             ? base.sorted { $0.size > $1.size }
             : base.sorted { ($0.daysUnused ?? 0) > ($1.daysUnused ?? 0) }

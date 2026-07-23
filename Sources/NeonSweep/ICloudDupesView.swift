@@ -4,6 +4,31 @@ struct ICloudDupesView: View {
     @ObservedObject var model: ICloudDupesModel
     @State private var confirming = false
     @State private var shownLimit = 100
+    @State private var anchor: String?
+
+    /// Todas las rutas borrables (sin las ★ que se conservan), en orden.
+    private var deletablePaths: [String] {
+        model.groups.flatMap { g in g.files.filter { $0 != g.keep } }
+    }
+
+    /// Clic alterna; Shift+clic marca el rango entre archivos borrables.
+    private func toggle(_ f: String) {
+        let list = deletablePaths
+        if NSEvent.modifierFlags.contains(.shift),
+           let anchor,
+           let a = list.firstIndex(of: anchor),
+           let b = list.firstIndex(of: f) {
+            let marking = !model.checked.contains(f)
+            for item in list[min(a, b)...max(a, b)] {
+                if marking { model.checked.insert(item) } else { model.checked.remove(item) }
+            }
+        } else if model.checked.contains(f) {
+            model.checked.remove(f)
+        } else {
+            model.checked.insert(f)
+        }
+        anchor = f
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -184,7 +209,7 @@ struct ICloudDupesView: View {
                     .help(t("kept"))
             } else {
                 Button {
-                    if isSel { model.checked.remove(f) } else { model.checked.insert(f) }
+                    toggle(f)
                 } label: {
                     Text(isSel ? "[x]" : "[ ]")
                         .font(Theme.body)

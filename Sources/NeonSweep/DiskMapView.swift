@@ -4,6 +4,26 @@ struct DiskMapView: View {
     @ObservedObject var model: DiskMapModel
     @State private var confirming = false
     @AppStorage("diskmap.treemap") private var showTreemap = true
+    @State private var anchor: String?
+
+    /// Clic alterna; Shift+clic marca el rango visible.
+    private func toggle(_ child: DiskNode) {
+        let list = model.current?.children ?? []
+        if NSEvent.modifierFlags.contains(.shift),
+           let anchor,
+           let a = list.firstIndex(where: { $0.id == anchor }),
+           let b = list.firstIndex(where: { $0.id == child.id }) {
+            let marking = !model.checked.contains(child.id)
+            for item in list[min(a, b)...max(a, b)] {
+                if marking { model.checked.insert(item.id) } else { model.checked.remove(item.id) }
+            }
+        } else if model.checked.contains(child.id) {
+            model.checked.remove(child.id)
+        } else {
+            model.checked.insert(child.id)
+        }
+        anchor = child.id
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -85,6 +105,19 @@ struct DiskMapView: View {
                 .buttonStyle(NeonClick())
             }
             Spacer()
+            if let children = model.current?.children, !children.isEmpty {
+                Button {
+                    if model.checked.count == children.count { model.checked = [] }
+                    else { model.checked = Set(children.map(\.id)) }
+                } label: {
+                    Text(model.checked.count == (model.current?.children?.count ?? 0)
+                         ? t("[ NONE ]") : t("[ ALL ]"))
+                        .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neonDim)
+                        .frame(minHeight: 22).contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .help(t("Select all / none"))
+            }
             if model.stack.count > 1 {
                 Button { model.goBack() } label: {
                     Text(t("[ UP ]")).font(Theme.mono(11, .bold)).foregroundStyle(Theme.neonDim)
@@ -149,7 +182,7 @@ struct DiskMapView: View {
         let barFraction = maxSize > 0 ? Double(child.size) / Double(maxSize) : 0
         return HStack(spacing: 8) {
             Button {
-                if isSel { model.checked.remove(child.id) } else { model.checked.insert(child.id) }
+                toggle(child)
             } label: {
                 Text(isSel ? "[x]" : "[ ]")
                     .font(Theme.body)
