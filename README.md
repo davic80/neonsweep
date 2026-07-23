@@ -13,7 +13,7 @@
 | 01 | **DASHBOARD** | Disk usage incl. **purgeable** space Finder hides, iCloud quota (`brctl`), reclaimable-space targets |
 | 02 | **UNINSTALLER** | Pick an app, see every leftover it dropped in `~/Library` (bundle-ID matching, 12 locations), move it all to Trash. Also finds **orphaned leftovers** from apps you deleted long ago (reverse vendor-prefix matching) and system-level (`/Library`) leftovers, deletable via a single admin authorization |
 | 03 | **SYSTEM JUNK** | User caches, logs, iOS backups (with device name & date), old installers, saved app state |
-| 04 | **DEV JUNK** | Xcode DerivedData & DeviceSupport, simulators, Docker/Colima/OrbStack, 11 package-manager caches, forgotten `node_modules` |
+| 04 | **DEV JUNK** | Xcode DerivedData & DeviceSupport, simulators, Docker/Colima/OrbStack, 15 package-manager caches, `node_modules`/venvs of projects untouched for 15–365 days (you pick) |
 | 05 | **PHOTOS** | Duplicate & similar groups (Vision feature prints, 3 tiers, user-pickable BEST), plus the killer feature: **RAW → HEIC** (parallel, ~92% savings, EXIF intact) and **video → HEVC** with optimal/max profiles. Incremental analysis with resume checkpoints; import → verify → delete safety flow |
 | 06 | **UPDATES** | Pending Homebrew formulae/casks and App Store updates (via `mas`), upgradeable per package or all at once |
 | 07 | **ICLOUD DUPES** | Exact file duplicates in iCloud Drive via streaming SHA-256 (size pre-grouping, not-downloaded files skipped) — keeps the shortest path per group |
