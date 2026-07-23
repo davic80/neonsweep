@@ -199,6 +199,41 @@ import CryptoKit
         #expect(!DevJunkSpecs.isForgotten(lastActivity: nil, days: 15, now: now))
     }
 
+    // MARK: resolución por perfil (regla de David, 24-jul-2026)
+
+    /// ÓPTIMA respeta la resolución; MÁXIMA baja hasta 1080p como mucho y
+    /// NUNCA amplía: si la entrada ya está por debajo, se queda igual.
+    @Test func maxProfileCapsAt1080pAndNeverUpscales() {
+        typealias P = PhotosModel.TranscodePlan
+
+        // 4K apaisado y vertical → 1080p en ambas orientaciones
+        #expect(P.cappedTo1080p(width: 3840, height: 2160).0 == 1920)
+        #expect(P.cappedTo1080p(width: 3840, height: 2160).1 == 1080)
+        #expect(P.cappedTo1080p(width: 2160, height: 3840).0 == 1080)
+        #expect(P.cappedTo1080p(width: 2160, height: 3840).1 == 1920)
+
+        // Ya en 1080p → intacto (nada de reescalar por reescalar)
+        #expect(P.cappedTo1080p(width: 1920, height: 1080).0 == 1920)
+        #expect(P.cappedTo1080p(width: 1080, height: 1920).1 == 1920)
+
+        // Por debajo de 1080p → NUNCA se toca, ni para subir ni para bajar
+        for (w, h) in [(1280, 720), (640, 480), (854, 480), (320, 240)] {
+            let (ow, oh, s) = P.cappedTo1080p(width: w, height: h)
+            #expect((ow, oh) == (w, h), "\(w)×\(h) no debe cambiar de tamaño")
+            #expect(s == 1)
+        }
+
+        // Panorámico: el techo va por el lado CORTO, no por el largo.
+        // Con la regla vieja (lado largo ≤1920) esto caía a 1920×540.
+        let ultra = P.cappedTo1080p(width: 3840, height: 1080)
+        #expect(ultra.1 == 1080, "1080 líneas ya son 1080p: no se baja más")
+        #expect(ultra.0 == 3840)
+
+        // Dimensiones siempre pares (el codificador las exige)
+        let odd = P.cappedTo1080p(width: 2049, height: 1537)
+        #expect(odd.0 % 2 == 0 && odd.1 % 2 == 0)
+    }
+
     // MARK: umbral de vídeos gemelos (2% de tamaño)
 
     @Test func dupeVideoSizeThreshold() {

@@ -21,6 +21,22 @@ extension PhotosModel {
         /// sobre el tamaño natural de la pista, que puede venir girado.
         var scale: Double = 1
 
+        /// Techo de 1080p para el perfil MÁXIMA, medido sobre el **lado corto**:
+        /// "1080p" son 1080 líneas, no 1920 píxeles de ancho. Limitar el lado
+        /// largo dejaría un panorámico de 3840×1080 en 1920×540, por debajo de
+        /// 1080p. Devuelve las dimensiones ya pares (las exige el codificador).
+        ///
+        /// Nunca amplía: si el original está por debajo de 1080p se devuelve tal
+        /// cual y solo se recorta el bitrate. El perfil ÓPTIMA ni pasa por aquí.
+        nonisolated static func cappedTo1080p(width: Int, height: Int) -> (Int, Int, Double) {
+            let shortSide = Double(min(width, height))
+            guard shortSide > 1080 else { return (width, height, 1) }
+            let scale = 1080.0 / shortSide
+            return (max(2, Int(Double(width) * scale) & ~1),
+                    max(2, Int(Double(height) * scale) & ~1),
+                    scale)
+        }
+
         /// Calcula el plan desde los metadatos del asset (sin abrir el fichero).
         nonisolated static func make(for pa: PhotoAsset, profile: VideoProfile) -> TranscodePlan {
             let seconds = max(1.0, pa.asset.duration)
@@ -41,13 +57,10 @@ extension PhotosModel {
                 // frente a H.264 con pérdida casi invisible)
                 target = min(max(srcBps * optPct, 6_000_000), 40_000_000)
             case .aggressive:
-                // reescala a 1080p y comprime fuerte
-                let maxDim = Double(max(w, h))
-                if maxDim > 1920 {
-                    scale = 1920.0 / maxDim
-                    w = Int(Double(w) * scale) & ~1   // dimensiones pares
-                    h = Int(Double(h) * scale) & ~1
-                }
+                // Techo de 1080p y compresión fuerte. NUNCA sube resolución:
+                // si el original ya está por debajo, se queda como está y solo
+                // baja el bitrate.
+                (w, h, scale) = Self.cappedTo1080p(width: w, height: h)
                 target = min(max(srcBps * maxPct, 4_000_000), 10_000_000)
             }
             target = min(target, srcBps * 0.85)   // nunca apuntar por encima del original

@@ -45,6 +45,31 @@ enum BenchTranscode {
         let plan = PhotosModel.TranscodePlan(width: Int(size.width), height: Int(size.height),
                                              bitrate: 4_000_000, estBytes: 0, scale: 1)
 
+        // 0a) escala + orientación: comprueba que el resultado sale con las
+        //     dimensiones pedidas y conserva la rotación de reproducción.
+        //     Quitar el compositor movió ambas cosas al codificador.
+        let half = PhotosModel.TranscodePlan(width: Int(size.width / 2), height: Int(size.height / 2),
+                                             bitrate: 4_000_000, estBytes: 0, scale: 0.5)
+        let outScaled = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bench-\(UUID().uuidString).mov")
+        if await PhotosModel.transcode(asset, to: outScaled, plan: half,
+                                       timeLimit: min(5, span), progress: { _ in }) {
+            let a = AVURLAsset(url: outScaled)
+            if let t = try? await a.loadTracks(withMediaType: .video).first,
+               let n = try? await t.load(.naturalSize),
+               let tf = try? await t.load(.preferredTransform) {
+                let srcTf = (try? await track.load(.preferredTransform)) ?? .identity
+                let srcRot = abs(srcTf.b) == 1 && abs(srcTf.c) == 1
+                let rotated = abs(tf.b) == 1 && abs(tf.c) == 1
+                print(String(format: "  escala 0.5           %.0f×%.0f (esperado %.0f×%.0f) · rotación origen=%@ salida=%@",
+                             n.width, n.height, size.width / 2, size.height / 2,
+                             srcRot ? "sí" : "no", rotated ? "sí" : "no"))
+            }
+        } else {
+            print("  escala 0.5           FALLÓ")
+        }
+        try? FileManager.default.removeItem(at: outScaled)
+
         // 0) solo decodificar: separa el coste del decodificador del total
         var t0 = Date()
         let frames = await decodeOnly(asset, limit: span)

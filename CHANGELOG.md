@@ -2,6 +2,15 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.7.3] — 2026-07-24
+
+### Fixed
+- **The 1080p cap was measured on the long side**, so an ultrawide 3840×1080 clip came out as 1920×540 — below 1080p. "1080p" means 1080 lines, so the cap now applies to the short side. Identical result for all normal 16:9 material; only ultrawide changes.
+- **The MAX profile card claimed "downscales 4K to 1080p" even on videos already at or below 1080p**, where nothing but the bitrate changes. The card now says what will actually happen to that specific video.
+
+### Confirmed by tests
+- OPTIMAL never changes resolution. MAX caps at 1080p and **never upscales**: 1280×720, 854×480 and 640×480 come out untouched. Verified end-to-end too — 3840×2160 → 1920×1080 and 2160×3840 → 1080×1920, with rotation metadata preserved (`scripts/make-rotated-fixture.swift` builds an iPhone-style portrait clip, since ffmpeg won't write the display matrix reliably).
+
 ## [0.7.2] — 2026-07-24
 
 ### Changed

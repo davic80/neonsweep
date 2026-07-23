@@ -20,9 +20,16 @@ struct VideoOptimizeSheet: View {
                             detail: t("nearly invisible quality loss; ideal to keep as archive"),
                             disabled: model.codecByID[pa.id] == "HEVC ✓",
                             disabledNote: t("Already HEVC — recompressing won't shrink it"))
+                // La nota dice lo que va a pasar con ESTE vídeo: prometer
+                // "baja a 1080p" sobre uno que ya está en 1080p o por debajo
+                // era mentir, y ahí lo único que cambia es el bitrate.
                 profileCard(pa, profile: .aggressive,
-                            title: t("MAX — 1080p + strong compression"),
-                            detail: t("downscales 4K to 1080p; fine for casual viewing and sharing"),
+                            title: min(pa.asset.pixelWidth, pa.asset.pixelHeight) > 1080
+                                ? t("MAX — 1080p + strong compression")
+                                : t("MAX — strong compression, same resolution"),
+                            detail: min(pa.asset.pixelWidth, pa.asset.pixelHeight) > 1080
+                                ? t("downscales to 1080p; fine for casual viewing and sharing")
+                                : t("already 1080p or below — resolution untouched, only the bitrate drops"),
                             disabled: false, disabledNote: "")
                 Text(t("The original stays 30 days in Recently Deleted; only replaced if it truly shrinks ≥15%."))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)

@@ -428,3 +428,8 @@
 "%d items" = "%d elementos";
 "[ QUEUE ]" = "[ A LA COLA ]";
 "Adds it to the queue — it starts when the current one finishes" = "Lo añade a la cola — empieza cuando termine la actual";
+
+/* perfiles de vídeo: la nota dice lo que pasará con ESE vídeo */
+"MAX — strong compression, same resolution" = "MÁXIMA — compresión fuerte, misma resolución";
+"downscales to 1080p; fine for casual viewing and sharing" = "baja a 1080p; de sobra para ver y compartir";
+"already 1080p or below — resolution untouched, only the bitrate drops" = "ya está en 1080p o menos — no se toca la resolución, solo baja el bitrate";
