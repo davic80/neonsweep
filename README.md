@@ -37,6 +37,17 @@ open build/NeonSweep.app
 
 Dev loop: `swift build && swift run`. Tests: `swift test`. Open a specific module directly (handy for demos): `swift run NeonSweep -- --module photos`.
 
+### Command line
+
+There is a report mode, and only a report mode:
+
+```sh
+/Applications/NeonSweep.app/Contents/MacOS/NeonSweep --report          # human readable
+/Applications/NeonSweep.app/Contents/MacOS/NeonSweep --report --json   # for scripts
+```
+
+It prints disk usage and reclaimable space per category, then exits. **It never deletes anything.** There is no `--clean` flag and there won't be one: every module here is built around looking at the list before agreeing to it, and a cleaner that empties folders unattended from a cron job is exactly the kind of tool that breaks Macs. Use `--report` to watch, open the app to act.
+
 ### Homebrew
 
 ```sh

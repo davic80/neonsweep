@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct NeonSweepApp: App {
     init() {
+        CLIReport.runIfRequested()
         Diag.runIfRequested()
     }
 

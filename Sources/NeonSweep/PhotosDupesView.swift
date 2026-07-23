@@ -37,8 +37,13 @@ extension PhotosView {
                         .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
                         .shadow(color: Theme.neon.opacity(0.4), radius: 4)
                 }
-                Text(t("nothing is pre-checked — you decide // BEST = GPS > oldest real date > resolution > size; tap ☆ to choose another"))
+                Text(t("nothing is pre-checked — you decide // BEST = favourite > GPS > oldest real date > resolution > size; tap ☆ to choose another"))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                if model.protectedFavorites > 0 {
+                    Text(String(format: t("// %d favourites left out of bulk marking — check them one by one if you really want them gone"),
+                                model.protectedFavorites))
+                        .font(Theme.mono(10)).foregroundStyle(Theme.neonDim)
+                }
             }
             LazyVStack(alignment: .leading, spacing: 10) {
                 ForEach(filteredGroups.prefix(maxGroupsShown)) { g in

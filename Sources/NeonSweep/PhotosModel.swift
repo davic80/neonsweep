@@ -584,15 +584,19 @@ final class PhotosModel: ObservableObject {
         rebuildGroups()
     }
 
-    /// Criterio de "mejor": conserva GPS > la más antigua (con fecha real)
-    /// > más resolución > más peso. Las copias re-guardadas pierden GPS y
-    /// tienen fecha posterior; una fecha ~epoch (1-1-1970, timestamp 0 o
-    /// anterior) es corrupta y nunca gana el criterio de antigüedad.
-    nonisolated static func bestScore(_ p: PhotoAsset) -> (Int, Double, Int, Int64) {
+    /// Criterio de "mejor": favorita > GPS > la más antigua (con fecha real)
+    /// > más resolución > más peso. El corazón manda sobre todo lo demás: es
+    /// la única señal explícita del usuario, y proponer borrar una favorita
+    /// porque su gemela pesa más sería un falso positivo garantizado.
+    /// Las copias re-guardadas pierden GPS y tienen fecha posterior; una fecha
+    /// ~epoch (1-1-1970, timestamp 0 o anterior) es corrupta y nunca gana el
+    /// criterio de antigüedad.
+    nonisolated static func bestScore(_ p: PhotoAsset) -> (Int, Int, Double, Int, Int64) {
         let t = p.asset.creationDate?.timeIntervalSince1970
         // válida si existe y no está pegada al epoch (dos días de margen)
         let dateScore: Double = (t != nil && t! > 172_800) ? -t! : -.greatestFiniteMagnitude
-        return (p.asset.location != nil ? 1 : 0,
+        return (p.asset.isFavorite ? 1 : 0,
+                p.asset.location != nil ? 1 : 0,
                 dateScore,                                   // más antigua = mayor
                 p.asset.pixelWidth * p.asset.pixelHeight,
                 p.fileSize)
@@ -607,9 +611,20 @@ final class PhotosModel: ObservableObject {
         saveCache()
     }
 
-    /// Marca todo el grupo menos la mejor (la mejor nunca es borrable).
+    /// Marca todo el grupo menos la mejor. Las favoritas quedan fuera del
+    /// marcado masivo aunque no sean la mejor: si un grupo tiene dos corazones,
+    /// las dos importan. Se pueden marcar a mano una a una.
     func selectAllButBest(_ g: DupeGroup) {
-        for m in g.members where m.id != g.bestID { selected.insert(m.id) }
+        for m in g.members where m.id != g.bestID && !m.asset.isFavorite {
+            selected.insert(m.id)
+        }
+    }
+
+    /// Favoritas protegidas del marcado masivo en todos los grupos.
+    var protectedFavorites: Int {
+        groups.reduce(0) { acc, g in
+            acc + g.members.filter { $0.id != g.bestID && $0.asset.isFavorite }.count
+        }
     }
 
     /// Marca de golpe todas las DUPLICADAS exactas (menos las mejores).

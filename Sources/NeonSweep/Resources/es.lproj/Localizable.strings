@@ -386,3 +386,12 @@
 "// auxiliary component: removing it breaks the feature it serves, not the main app" = "// componente auxiliar: quitarlo rompe la función que da servicio, no la app principal";
 "menu bar" = "barra de menús";
 "Menu bar app: it may run for months without you ever \"opening\" it" = "App de barra de menús: puede llevar meses corriendo sin que la \"abras\" nunca";
+
+/* auditoría de falsos positivos */
+"%d without usage data, not judged" = "%d sin datos de uso, sin juzgar";
+"Spotlight has no record for these apps, so NeonSweep will not call them abandoned" = "Spotlight no tiene registro de estas apps, así que NeonSweep no las da por abandonadas";
+"nothing is pre-checked — you decide // BEST = favourite > GPS > oldest real date > resolution > size; tap ☆ to choose another" = "nada viene marcado — tú decides // MEJOR = favorita > GPS > fecha real más antigua > resolución > peso; pulsa ☆ para elegir otra";
+"// %d favourites left out of bulk marking — check them one by one if you really want them gone" = "// %d favoritas fuera del marcado masivo — márcalas una a una si de verdad quieres borrarlas";
+"only projects untouched for 60+ days; `npm install` recreates them" = "solo proyectos sin tocar 60+ días; `npm install` los recrea";
+"only projects untouched for 60+ days; `uv sync` / `poetry install` recreates them" = "solo proyectos sin tocar 60+ días; `uv sync` / `poetry install` los recrea";
+".dmg / .pkg / .iso in Downloads — check the date; keep the ones you use as media" = ".dmg / .pkg / .iso en Descargas — mira la fecha; conserva los que uses como imagen";

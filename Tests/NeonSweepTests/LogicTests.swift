@@ -140,6 +140,19 @@ import CryptoKit
         #expect(ICloudDupesModel.sha256(of: tmp.path) == expected)
     }
 
+    // MARK: apps sin uso — la falta de dato no es prueba de abandono
+
+    @Test func unknownUsageIsNeverFlaggedAsUnused() {
+        // Spotlight sin registro: no se puede juzgar
+        #expect(!UnusedAppsModel.qualifiesAsUnused(daysUnused: nil, minDays: 7),
+                "sin fecha no se marca; con el índice desactivado saldría el disco entero")
+        #expect(!UnusedAppsModel.qualifiesAsUnused(daysUnused: nil, minDays: 365))
+        // Con dato real sí decide el umbral
+        #expect(UnusedAppsModel.qualifiesAsUnused(daysUnused: 400, minDays: 365))
+        #expect(!UnusedAppsModel.qualifiesAsUnused(daysUnused: 30, minDays: 90))
+        #expect(UnusedAppsModel.qualifiesAsUnused(daysUnused: 90, minDays: 90), "el umbral es inclusivo")
+    }
+
     // MARK: umbral de vídeos gemelos (2% de tamaño)
 
     @Test func dupeVideoSizeThreshold() {

@@ -160,7 +160,9 @@ enum SystemJunkSpecs {
             scan: { iosBackups() }),
         JunkCategorySpec(
             id: "installers", name: "INSTALLERS IN DOWNLOADS",
-            note: ".dmg / .pkg / .iso already installed",
+            // No se puede saber si un .dmg ya se instaló: la fecha es la pista
+            // y el ISO que guardas a propósito también sale aquí.
+            note: ".dmg / .pkg / .iso in Downloads — check the date; keep the ones you use as media",
             scan: { installers() }),
         JunkCategorySpec(
             id: "savedstate", name: "SAVED APP STATE",

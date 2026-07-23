@@ -2,6 +2,20 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- **Read-only CLI report**: `NeonSweep --report [--json]` prints disk usage and reclaimable space per category and exits. It never deletes anything — deliberately, so it's safe in a cron job or a status bar script. Cleaning stays interactive.
+- Duplicate photos: a counter of **favourites excluded from bulk marking**.
+- Unused apps: a counter of apps **with no usage data**, which are no longer judged.
+
+### Fixed — false-positive audit
+- **Hard links and symlinks counted as duplicates** in file dupes: several names for the same inode reported wasted space that deleting would never recover. One representative per inode now, symlinks skipped, and sizes read as allocated-on-disk. Added a note that APFS clones share storage, so real freed space can be lower than estimated.
+- **Favourite photos could be proposed for deletion**: `isFavorite` is now the top criterion for BEST, and favourites are excluded from *mark all* even when they aren't the best of their group.
+- **Apps with no Spotlight record were reported as abandoned** (`9999 days unused`). Absence of data is not evidence of disuse — with indexing disabled every app would have been flagged. They're now counted separately and never listed.
+- **"Forgotten" node_modules / venvs included live projects**: an active project's `.venv` was listed as junk. They now require the project to be untouched for 60+ days, measured on the project's own files rather than the dependency folder.
+- Installers in Downloads no longer claim to be "already installed" — that can't be known. The date is shown and the note says to keep ISOs you use as media.
+
 ## [0.5.0] — 2026-07-22
 
 ### Added

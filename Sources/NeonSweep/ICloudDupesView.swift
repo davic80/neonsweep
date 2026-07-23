@@ -131,6 +131,8 @@ struct ICloudDupesView: View {
             minSizeRow
             Text(t("// SHA-256 over files above the size threshold; app bundles, libraries and caches are skipped. In iCloud, not-downloaded files are skipped too (hashing them would download everything)."))
                 .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            Text(t("// hard links are counted once. On APFS, copies made in Finder can share storage, so real freed space may be less than estimated."))
+                .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             HStack(spacing: 20) {
                 if model.scanned {
                     Text(String(format: t("%d duplicate groups"), model.groups.count))

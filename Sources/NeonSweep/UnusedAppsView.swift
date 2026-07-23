@@ -78,6 +78,11 @@ struct UnusedAppsView: View {
                     .buttonStyle(NeonClick())
                     .help(t("URL handlers and background agents: the system launches them, so they never register a last-opened date"))
                 }
+                if model.unknownCount > 0 {
+                    Text(String(format: t("%d without usage data, not judged"), model.unknownCount))
+                        .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                        .help(t("Spotlight has no record for these apps, so NeonSweep will not call them abandoned"))
+                }
                 if model.scanned {
                     Text(String(format: t("%d apps · %@ reclaimable"),
                                 model.filtered.count, formatBytes(model.reclaimable)))

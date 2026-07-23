@@ -51,11 +51,11 @@ enum DevJunkSpecs {
             scan: { JunkFS.labeledPaths(packageCaches) }),
         JunkCategorySpec(
             id: "nodemodules", name: "FORGOTTEN NODE_MODULES",
-            note: "project dependencies; `npm install` recreates them — check the project date",
+            note: "only projects untouched for 60+ days; `npm install` recreates them",
             scan: { forgottenDirs(named: ["node_modules"], hidden: false) }),
         JunkCategorySpec(
             id: "venvs", name: "FORGOTTEN VENVS",
-            note: "Python virtualenvs; `uv sync` / `poetry install` recreates them — check the project date",
+            note: "only projects untouched for 60+ days; `uv sync` / `poetry install` recreates them",
             scan: { forgottenDirs(named: [".venv", "venv"], hidden: true) }),
     ]
 
@@ -86,6 +86,23 @@ enum DevJunkSpecs {
 
     // MARK: directorios de dependencias en proyectos sin tocar
 
+    /// Un proyecto tocado dentro de esta ventana está vivo, no olvidado.
+    nonisolated static let activeProjectWindow: TimeInterval = 60 * 86_400
+
+    /// Actividad real del proyecto: la fecha más reciente entre el propio
+    /// directorio y sus hijos directos, ignorando la carpeta de dependencias
+    /// (que se toca sola al instalar y mentiría en ambos sentidos).
+    nonisolated static func lastActivity(in dir: String, excluding target: String) -> Date? {
+        let fm = FileManager.default
+        var newest = (try? fm.attributesOfItem(atPath: dir))?[.modificationDate] as? Date
+        for child in (try? fm.contentsOfDirectory(atPath: dir)) ?? [] where child != target {
+            guard let d = (try? fm.attributesOfItem(atPath: "\(dir)/\(child)"))?[.modificationDate]
+                    as? Date else { continue }
+            if newest == nil || d > newest! { newest = d }
+        }
+        return newest
+    }
+
     /// Busca directorios con los nombres dados bajo las carpetas de proyectos.
     /// `hidden: true` permite encontrar nombres que empiezan por punto (.venv).
     nonisolated private static func forgottenDirs(named targets: [String], hidden: Bool) -> [JunkEntry] {
@@ -111,8 +128,12 @@ enum DevJunkSpecs {
                 if isTarget {
                     let size = ScanModel.directorySize(URL(fileURLWithPath: p))
                     guard size > 20_000_000 else { continue }   // ignorar los diminutos
+                    // "Olvidado" tiene que significar algo: si el proyecto se
+                    // tocó hace nada, borrar sus dependencias solo cuesta un
+                    // `npm install`. Un .venv de un proyecto vivo NO es basura.
+                    let mod = lastActivity(in: dir, excluding: n)
+                    if let mod, Date().timeIntervalSince(mod) < activeProjectWindow { continue }
                     let projectName = (dir as NSString).lastPathComponent
-                    let mod = (try? fm.attributesOfItem(atPath: dir))?[.modificationDate] as? Date
                     results.append(JunkEntry(
                         name: "\(projectName)/\(n)", path: p, size: size,
                         detail: mod.map { String(format: t("project modified %@"), df.string(from: $0)) }))

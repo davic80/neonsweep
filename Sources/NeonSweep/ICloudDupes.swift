@@ -176,7 +176,11 @@ final class ICloudDupesModel: ObservableObject {
         let fm = FileManager.default
         var files: [(String, Int64)] = []
         var skipped = 0
-        let keys: Set<URLResourceKey> = [.isRegularFileKey, .totalFileAllocatedSizeKey]
+        // Enlaces duros: varios nombres para el MISMO fichero (mismo inodo).
+        // Contarlos como duplicados sería mentir: borrar uno no libera nada.
+        var seenInodes = Set<UInt64>()
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .totalFileAllocatedSizeKey,
+                                         .fileResourceIdentifierKey, .isSymbolicLinkKey]
         let scanningHome = root == FileManager.default.homeDirectoryForCurrentUser.path
         guard let en = fm.enumerator(at: URL(fileURLWithPath: root),
                                      includingPropertiesForKeys: Array(keys),
@@ -201,8 +205,13 @@ final class ICloudDupesModel: ObservableObject {
                 // ".fichero.ext.icloud" = placeholder sin descargar
                 if url.pathExtension == "icloud" { skipped += 1; return }
                 guard let v = try? url.resourceValues(forKeys: keys),
-                      v.isRegularFile == true,
+                      v.isRegularFile == true, v.isSymbolicLink != true,
                       let size = v.totalFileAllocatedSize, Int64(size) >= minSize else { return }
+                // Un solo representante por inodo (descarta enlaces duros)
+                if let st = try? fm.attributesOfItem(atPath: url.path),
+                   let ino = (st[.systemFileNumber] as? NSNumber)?.uint64Value {
+                    guard seenInodes.insert(ino).inserted else { return }
+                }
                 files.append((url.path, Int64(size)))
             }
         }

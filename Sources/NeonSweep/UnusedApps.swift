@@ -53,9 +53,13 @@ final class UnusedAppsModel: ObservableObject {
 
     var helperCount: Int { apps.filter(\.isHelper).count }
 
+    /// Apps sin ningún dato en Spotlight (ni uso ni instalación). No se pueden
+    /// juzgar, así que se cuentan aparte en vez de darlas por abandonadas.
+    var unknownCount: Int { apps.filter { $0.lastUsed == nil && !$0.isHelper }.count }
+
     var filtered: [UnusedApp] {
         let base = apps.filter {
-            ($0.daysUnused ?? 9_999) >= minDays
+            Self.qualifiesAsUnused(daysUnused: $0.daysUnused, minDays: minDays)
                 && !$0.isRunning                       // en marcha = en uso
                 && (showHelpers || !$0.isHelper)
         }
@@ -63,6 +67,14 @@ final class UnusedAppsModel: ObservableObject {
             ? base.sorted { $0.size > $1.size }
             : base.sorted { ($0.daysUnused ?? 0) > ($1.daysUnused ?? 0) }
         return sortAsc ? out.reversed() : out
+    }
+
+    /// Sin fecha ⇒ desconocido, NO "lleva siglos sin abrirse". Si Spotlight
+    /// está desindexado todas las apps darían nulo y marcaríamos el disco
+    /// entero como basura.
+    nonisolated static func qualifiesAsUnused(daysUnused: Int?, minDays: Int) -> Bool {
+        guard let d = daysUnused else { return false }
+        return d >= minDays
     }
 
     func setSort(bySize: Bool) {
