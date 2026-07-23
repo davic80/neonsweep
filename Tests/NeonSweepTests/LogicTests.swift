@@ -92,6 +92,25 @@ import CryptoKit
         }
     }
 
+    /// Caso real (app "Stats"): los ficheros del sistema que contienen el
+    /// nombre por casualidad no deben aparecer, y la carpeta con el nombre
+    /// exacto sí es un resto legítimo.
+    @Test func nameMatchingIgnoresSystemFiles() {
+        let appName = "Stats"
+        let normName = UninstallerModel.normalized(appName)
+
+        // Coincidencias casuales dentro de ficheros de Apple
+        for entry in ["com.apple.aiml.mlpt.FedStats.MLHostPlugin",
+                      "com.apple.inputAnalytics.serverStats.plist"] {
+            #expect(entry.lowercased().hasPrefix("com.apple."),
+                    "\(entry) es del sistema y debe descartarse antes de mirar el nombre")
+        }
+        // Carpeta con el nombre exacto de la app: resto legítimo y fiable
+        #expect(UninstallerModel.normalized("Stats") == normName)
+        // "FedStats" contiene "stats" pero no es el nombre exacto
+        #expect(UninstallerModel.normalized("FedStats") != normName)
+    }
+
     // MARK: escapado de rutas para shell admin
 
     @Test func adminQuoted() {

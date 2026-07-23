@@ -308,9 +308,16 @@ final class UninstallerModel: ObservableObject {
                 } else if let family, e.contains(family) {
                     // misma familia: otra versión o un servicio auxiliar
                     kind = .family
+                } else if nameUsable && !app.isApple
+                            && (e.hasPrefix("com.apple.") || e.hasPrefix("group.com.apple")) {
+                    // Ficheros del sistema que contienen el nombre por
+                    // casualidad ("FedStats" al desinstalar "Stats"): jamás.
+                    continue
                 } else if nameUsable && (e.contains(name)
                                          || (normName.count >= 5 && normalized(entry).contains(normName))) {
-                    kind = .name
+                    // Nombre exacto de carpeta = tan fiable como el bundle ID
+                    let stem = normalized((entry as NSString).deletingPathExtension)
+                    kind = (stem == normName) ? .bundleID : .name
                 }
                 guard let k = kind else { continue }
                 let full = "\(locPath)/\(entry)"
