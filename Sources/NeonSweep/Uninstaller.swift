@@ -329,10 +329,17 @@ final class UninstallerModel: ObservableObject {
         showingOrphans = true
         orphans = []
         orphanChecked = []
-        let installedPrefixes = Set(apps.map { Self.vendorPrefix($0.bundleID) })
+        // Claves de app instalada (3 componentes) y de fabricante (2), estas
+        // últimas con su "producto" para no señalar servicios auxiliares de
+        // apps que SÍ están instaladas (WhatsAppSMB con WhatsApp instalado).
+        let installed = apps.map(\.bundleID)
+        let names = apps.map(\.name)
         Task {
             let found = await Task.detached(priority: .userInitiated) {
-                Self.findOrphans(installedPrefixes: installedPrefixes)
+                // Incluye las apps del sistema (/System/Applications): Atajos,
+                // TV, Música… no salen en la lista pero reclaman sus datos
+                Self.findOrphans(installedBundleIDs: installed + Self.systemAppBundleIDs(),
+                                 installedNames: names)
             }.value
             self.orphans = found.sorted { $0.size > $1.size }
             self.orphanScanning = false
@@ -346,6 +353,38 @@ final class UninstallerModel: ObservableObject {
     ///   "com.macpaw.site.theunarchiver"     → "com.macpaw.site"
     /// Comparar por app (no por fabricante) permite detectar restos de una app
     /// borrada aunque el fabricante siga teniendo otras instaladas.
+    /// Fabricante (dos componentes) sin prefijos de grupo ni Team ID.
+    /// "group.net.whatsapp.family" → "net.whatsapp"
+    nonisolated static func vendorOnly(_ bid: String) -> String {
+        var parts = bid.lowercased().split(separator: ".").map(String.init)
+        if parts.first == "group" { parts.removeFirst() }
+        if let first = parts.first, first.count == 10,
+           first.allSatisfy({ $0.isLetter || $0.isNumber }), first.contains(where: \.isNumber) {
+            parts.removeFirst()
+        }
+        return parts.prefix(2).joined(separator: ".")
+    }
+
+    /// Tercer componente (el "producto"): "net.whatsapp.WhatsAppSMB" → "whatsappsmb"
+    nonisolated static func productComponent(_ bid: String) -> String {
+        var parts = bid.lowercased().split(separator: ".").map(String.init)
+        if parts.first == "group" { parts.removeFirst() }
+        if let first = parts.first, first.count == 10,
+           first.allSatisfy({ $0.isLetter || $0.isNumber }), first.contains(where: \.isNumber) {
+            parts.removeFirst()
+        }
+        guard parts.count >= 3 else { return "" }
+        var p = parts[2]
+        while let c = p.last, c.isNumber { p.removeLast() }
+        return p
+    }
+
+    /// Identificadores del sistema que jamás son huérfanos aunque su app no
+    /// esté en /Applications (viven en /System o son servicios de macOS).
+    nonisolated static let systemVendors: Set<String> = [
+        "com.apple", "is.workflow", "tvappservices", "org.cups", "com.apple.print",
+    ]
+
     nonisolated static func vendorPrefix(_ bid: String) -> String {
         var parts = bid.lowercased().split(separator: ".").map(String.init)
         if parts.first == "group" { parts.removeFirst() }
@@ -362,7 +401,66 @@ final class UninstallerModel: ObservableObject {
         return key.joined(separator: ".")
     }
 
-    nonisolated static func findOrphans(installedPrefixes: Set<String>) -> [OrphanEntry] {
+    /// ¿Es huérfano? Solo si NINGUNA app instalada lo reclama. Tres barreras:
+    /// 1. Misma app (3 componentes) → no huérfano.
+    /// 2. Mismo fabricante Y producto emparentado (uno prefijo del otro):
+    ///    "net.whatsapp.WhatsAppSMB" con WhatsApp instalado → no huérfano.
+    /// 3. Identificadores del sistema (Apple, Atajos, TV, CUPS…) → nunca.
+    nonisolated static func isOrphan(_ candidate: String,
+                                     installedBundleIDs: [String],
+                                     installedNames: [String] = []) -> Bool {
+        // Normalizar quitando "group."/"systemgroup." para comparar de verdad
+        var bare = candidate.lowercased()
+        for p in ["group.", "systemgroup."] where bare.hasPrefix(p) {
+            bare = String(bare.dropFirst(p.count))
+        }
+        // 3. Identificadores del sistema
+        if systemVendors.contains(where: { bare == $0 || bare.hasPrefix($0 + ".") }) { return false }
+
+        let vendor = vendorOnly(candidate)
+        let key = vendorPrefix(candidate)
+        let product = productComponent(candidate)
+        // Nombres de apps instaladas, normalizados ("The Unarchiver" → theunarchiver)
+        let names = Set(installedNames.map { normalized($0) })
+
+        for bid in installedBundleIDs {
+            if vendorPrefix(bid) == key { return false }            // 1. misma app
+            guard vendorOnly(bid) == vendor else { continue }        // mismo fabricante
+            // 2a. Fabricante de un solo producto (net.whatsapp ← WhatsApp):
+            // el nombre del fabricante coincide con una app instalada, así que
+            // TODO lo suyo le pertenece.
+            let vendorName = vendor.split(separator: ".").last.map(String.init) ?? ""
+            if names.contains(vendorName) || normalized(bid).contains(vendorName + vendorName) {
+                return false
+            }
+            // 2b. Producto emparentado: "whatsapp" ⊂ "whatsappsmb"
+            let installedProduct = productComponent(bid)
+            if !product.isEmpty, !installedProduct.isEmpty,
+               product.hasPrefix(installedProduct) || installedProduct.hasPrefix(product) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Bundle IDs de las apps del sistema, que no viven en /Applications.
+    nonisolated static func systemAppBundleIDs() -> [String] {
+        let fm = FileManager.default
+        var out: [String] = []
+        for dir in ["/System/Applications", "/System/Applications/Utilities",
+                    "/System/Library/CoreServices"] {
+            for n in (try? fm.contentsOfDirectory(atPath: dir)) ?? [] where n.hasSuffix(".app") {
+                if let b = Bundle(url: URL(fileURLWithPath: "\(dir)/\(n)")),
+                   let id = b.bundleIdentifier {
+                    out.append(id)
+                }
+            }
+        }
+        return out
+    }
+
+    nonisolated static func findOrphans(installedBundleIDs: [String],
+                                        installedNames: [String] = []) -> [OrphanEntry] {
         let fm = FileManager.default
         var out: [OrphanEntry] = []
         for (locName, locPath) in locations {
@@ -378,11 +476,8 @@ final class UninstallerModel: ObservableObject {
                 let parts = lower.split(separator: ".")
                 guard parts.count >= 3, parts[0].count <= 6,
                       parts[0].allSatisfy(\.isLetter) else { continue }
-                // Jamás señalar cosas de Apple
-                guard !lower.hasPrefix("com.apple."),
-                      !lower.hasPrefix("group.com.apple") else { continue }
-                // Si el fabricante sigue instalado (cualquier app suya), no es huérfano
-                guard !installedPrefixes.contains(Self.vendorPrefix(lower)) else { continue }
+                guard Self.isOrphan(lower, installedBundleIDs: installedBundleIDs,
+                                    installedNames: installedNames) else { continue }
                 let full = "\(locPath)/\(entry)"
                 var isDir: ObjCBool = false
                 fm.fileExists(atPath: full, isDirectory: &isDir)

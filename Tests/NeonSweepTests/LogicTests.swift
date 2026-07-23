@@ -65,6 +65,33 @@ import CryptoKit
                 "carpetas con guion bajo y versión coinciden con el nombre de la app")
     }
 
+    /// Casos reales vistos en pantalla: nada de una app instalada puede
+    /// marcarse como huérfano, ni nada del sistema.
+    @Test func orphanNeverFlagsInstalledOrSystem() {
+        let installed = ["net.whatsapp.WhatsApp", "com.macpaw.site.theunarchiver",
+                         "com.apple.shortcuts", "com.apple.TV"]
+        let names = ["WhatsApp", "The Unarchiver", "Atajos", "TV"]
+
+        // Servicios auxiliares de apps INSTALADAS → nunca huérfanos
+        for e in ["group.net.whatsapp.whatsappsmb.shared", "group.net.whatsapp.family"] {
+            #expect(!UninstallerModel.isOrphan(e, installedBundleIDs: installed, installedNames: names),
+                    "WhatsApp está instalado: \(e) no puede ser huérfano")
+        }
+        // Identificadores del sistema → nunca, aunque no estén en /Applications
+        for e in ["group.is.workflow.my.app", "group.is.workflow.shortcuts",
+                  "group.tvappservices.container", "org.cups.printingprefs",
+                  "com.apple.finder"] {
+            #expect(!UninstallerModel.isOrphan(e, installedBundleIDs: installed, installedNames: names),
+                    "\(e) es del sistema")
+        }
+        // Restos reales de apps desinstaladas → sí son huérfanos
+        for e in ["com.macpaw.cleanmymac5", "com.macpaw.cleanmymac5.healthmonitor",
+                  "com.techunrestricted.windiskwriter"] {
+            #expect(UninstallerModel.isOrphan(e, installedBundleIDs: installed, installedNames: names),
+                    "\(e) sí es huérfano (su app no está instalada)")
+        }
+    }
+
     // MARK: escapado de rutas para shell admin
 
     @Test func adminQuoted() {
