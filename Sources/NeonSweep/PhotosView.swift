@@ -17,13 +17,14 @@ struct PhotosView: View {
     @AppStorage("photos.tab") private var tabRaw = PhotoTab.all.rawValue
     @AppStorage("photos.videoProfile") private var videoProfileRaw = "optimal"
 
-    var batchProfile: VideoProfile { videoProfileRaw == "max" ? .aggressive : .optimal }
-    var batchVideoCount: Int {
-        model.bigVideos.filter {
-            model.optSelected.contains($0.id)
-                && (batchProfile == .aggressive || model.codecByID[$0.id] != "HEVC ✓")
-        }.count
+    var batchProfile: VideoProfile {
+        switch videoProfileRaw {
+        case "max":   return .aggressive
+        case "light": return .light
+        default:      return .optimal
+        }
     }
+    var batchVideoCount: Int { model.videoTargets(for: batchProfile).count }
     @AppStorage("photos.rawLimit") var rawLimit = 50
     @AppStorage("photos.videoLimit") var videoLimit = 50
 
@@ -99,6 +100,7 @@ struct PhotosView: View {
             Text("↑ " + formatBytes(model.queued.map(\.bytes).reduce(0, +)))
                 .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
         }
+        .help(t("Everything converts first; Photos is only touched once, at the end"))
     }
 
     func sortPicker(_ sel: Binding<MediaSort>, _ asc: Binding<Bool>) -> some View {
@@ -436,8 +438,9 @@ struct PhotosView: View {
                         .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                     Spacer()
                     Text(t("batch profile:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-                    profileChip(t("[optimal]"), "optimal")
-                    profileChip(t("[max 1080p]"), "max")
+                    profileChip(t("[minimum]"), "light")
+                    profileChip(t("[optimum]"), "optimal")
+                    profileChip(t("[maximum 1080p]"), "max")
                     optimizeButton(
                         label: t("[ RECOMPRESS SELECTED → HEVC ]"),
                         count: batchVideoCount
@@ -616,6 +619,18 @@ struct PhotosView: View {
                     .font(Theme.mono(9, .bold))
                     .foregroundStyle(codec == "HEVC ✓" ? Theme.neonDim
                                      : (codec == nil ? Theme.grayDark : Theme.amber))
+                // Lo que convertimos nosotros se marca con certeza; el resto,
+                // como mucho, con la pista del bitrate por píxel.
+                if let e = ConvertedRegistry.shared.entry(m.id) {
+                    Text(t("NS ✓"))
+                        .font(Theme.mono(9, .bold)).foregroundStyle(Theme.neonDim)
+                        .help(String(format: t("Converted by NeonSweep (%@ → %@)"),
+                                     formatBytes(e.originalBytes), formatBytes(e.newBytes)))
+                } else if let d = VideoDensity.of(m), d.level == .alreadyTight {
+                    Text(t("TIGHT"))
+                        .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+                        .help(String(format: t("Looks already compressed (%.2f bits/pixel)"), d.bpp))
+                }
                 // Ya no se borra desde aquí: sin ver la otra copia, marcar "borrar"
                 // es a ciegas. El botón abre la comparación lado a lado.
                 if let g = model.twinGroup(for: m.id) {
@@ -725,6 +740,13 @@ struct PhotosView: View {
                 Text(r).font(Theme.small)
                     .foregroundStyle(r.hasPrefix("OK") ? Theme.neon : Theme.amber)
                     .lineLimit(1)
+                Button { AppLog.reveal() } label: {
+                    Text(t("[ log ]"))
+                        .font(Theme.mono(10, .bold)).foregroundStyle(Theme.neonDim)
+                        .frame(minHeight: 22).contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .help(AppLog.path)
             }
             Spacer()
             Text("\(model.selectedCount) " + t("checked =") + " \(formatBytes(model.selectedSize))")

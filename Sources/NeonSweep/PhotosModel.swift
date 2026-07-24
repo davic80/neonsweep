@@ -27,10 +27,44 @@ final class Flag: @unchecked Sendable {
     }
 }
 
-/// Perfil de conversión de vídeo.
+/// Perfil de conversión de vídeo, de menos a más agresivo:
+/// MÍNIMO → ÓPTIMO → MÁXIMO.
 enum VideoProfile {
+    case light        // recorte suave del bitrate, calidad casi intacta
     case optimal      // HEVC, misma resolución, pérdida casi invisible
-    case aggressive   // 1080p + compresión fuerte
+    case aggressive   // techo 1080p + compresión fuerte
+}
+
+/// Cómo de comprimido está ya un vídeo, en bits por píxel y fotograma.
+///
+/// Se calcula con peso, duración, resolución y fps: cuatro datos que PhotoKit
+/// ya tiene, así que sale al instante para toda la biblioteca. El códec real
+/// exige abrir el fichero (lento, y con 500+ vídeos tarda un buen rato en
+/// resolverse), y mientras tanto la app no sabía si algo ya estaba comprimido
+/// y ofrecía recomprimirlo igual.
+///
+/// Referencias a 1080p30: iPhone en H.264 ~0,27 bpp · HEVC de buena calidad
+/// ~0,13 bpp · por debajo de 0,08 ya se ve blando.
+enum VideoDensity {
+    case alreadyTight   // poco que rascar sin perder calidad visible
+    case moderate
+    case wasteful       // bitrate alto para lo que es: aquí sí hay ahorro
+
+    /// Umbrales en bits por píxel y fotograma.
+    static let tight = 0.13
+    static let fat = 0.22
+
+    static func of(_ pa: PhotoAsset) -> (level: VideoDensity, bpp: Double)? {
+        let secs = pa.asset.duration
+        let pixels = Double(pa.asset.pixelWidth * pa.asset.pixelHeight)
+        guard secs > 0.5, pixels > 0 else { return nil }
+        // 30 fps nominal: no está en los metadatos sin abrir el fichero, y
+        // usar un valor fijo mantiene la comparación entre vídeos honesta.
+        let bpp = Double(pa.fileSize) * 8 / (secs * pixels * 30)
+        if bpp <= tight { return (.alreadyTight, bpp) }
+        if bpp >= fat { return (.wasteful, bpp) }
+        return (.moderate, bpp)
+    }
 }
 
 /// Grupo de vídeos que parecen la misma toma. Al contrario que los grupos de
@@ -233,6 +267,11 @@ final class PhotosModel: ObservableObject {
         var partial: Bool?
         /// Aristas de similitud: permiten mover el slider sin re-analizar.
         var edges: [DupeEdge]?
+        /// Códec por vídeo. Se guarda porque resolverlo obliga a abrir cada
+        /// fichero: sin esto, al reabrir la app los 500+ vídeos volvían a
+        /// mostrar "?" durante minutos y no había forma de saber qué estaba
+        /// ya en HEVC.
+        var codecs: [String: String]?
     }
 
     nonisolated static func loadCacheFile() -> Cache? {
@@ -274,7 +313,8 @@ final class PhotosModel: ObservableObject {
             imageMeta: imageMeta ?? prev?.imageMeta,
             analyzedUpTo: analyzedUpTo ?? prev?.analyzedUpTo,
             partial: imageMeta == nil ? (prev?.partial ?? false) : partial,
-            edges: edges)
+            edges: edges,
+            codecs: codecByID)
         if let data = try? JSONEncoder().encode(cache) {
             try? data.write(to: Self.cacheURL)
         }
@@ -330,6 +370,9 @@ final class PhotosModel: ObservableObject {
         bigVideos = cache.videoIDs.compactMap(rebuild)
         rawPhotos = cache.rawIDs.compactMap(rebuild)
         videoTwins = Self.findVideoTwinGroups(bigVideos)
+        // Códecs guardados: sin esto, cada reapertura dejaba los vídeos en "?"
+        // hasta volver a abrirlos uno por uno.
+        codecByID = cache.codecs ?? [:]
         cacheDate = cache.date
         loadVideoCodecs()
         AppLog.log("CACHE: restaurado análisis del \(cache.date) (\(groups.count) grupos, \(bigVideos.count) vídeos, \(rawPhotos.count) raws)")
@@ -339,11 +382,23 @@ final class PhotosModel: ObservableObject {
     private func loadVideoCodecs() {
         let pending = bigVideos.filter { codecByID[$0.id] == nil }
         guard !pending.isEmpty else { return }
+        // En paralelo: abrir cada fichero es lento y en serie tardaba minutos
+        // en resolver una biblioteca grande, dejando casi todo en "?".
+        let workers = min(8, max(2, ProcessInfo.processInfo.activeProcessorCount / 2))
         Task.detached(priority: .utility) {
-            for v in pending {
-                let label = await Self.codecLabel(for: v.asset)
-                await MainActor.run { self.codecByID[v.id] = label }
+            await withTaskGroup(of: (String, String).self) { group in
+                var it = pending.makeIterator()
+                func addNext() {
+                    guard let v = it.next() else { return }
+                    group.addTask { (v.id, await Self.codecLabel(for: v.asset)) }
+                }
+                for _ in 0..<workers { addNext() }
+                for await (id, label) in group {
+                    await MainActor.run { self.codecByID[id] = label }
+                    addNext()
+                }
             }
+            await MainActor.run { self.saveCache() }
         }
     }
 

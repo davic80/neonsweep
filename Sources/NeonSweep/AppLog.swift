@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// Registro de actividad simple: ~/Library/Logs/NeonSweep.log
 /// Para diagnosticar optimizaciones sin depender del mensajito del footer.
@@ -34,5 +35,14 @@ enum AppLog {
         } else {
             try? line.write(toFile: path, atomically: true, encoding: .utf8)
         }
+    }
+
+    /// Abre el log en la app que el usuario tenga asociada (Consola, editor…).
+    /// Si aún no existe, se crea vacío para no dejar un clic sin efecto.
+    @MainActor static func reveal() {
+        if !FileManager.default.fileExists(atPath: path) {
+            log("(log creado)")
+        }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 }

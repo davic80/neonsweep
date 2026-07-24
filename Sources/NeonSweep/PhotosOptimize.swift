@@ -14,11 +14,25 @@ extension PhotosModel {
     /// Lote de vídeos con perfil elegido; en MÁXIMA los HEVC también entran
     /// (reescalar a 1080p sí les ahorra).
     func optimizeSelectedVideos(profile: VideoProfile = .optimal) {
-        let targets = bigVideos.filter {
-            optSelected.contains($0.id)
-                && (profile == .aggressive || codecByID[$0.id] != "HEVC ✓")
+        optimize(videoTargets(for: profile), video: true, profile: profile)
+    }
+
+    /// Qué se convertiría de verdad con este perfil. Fuente única: el contador
+    /// del botón usaba otro criterio y prometía más elementos de los que luego
+    /// entraban.
+    func videoTargets(for profile: VideoProfile) -> [PhotoAsset] {
+        bigVideos.filter {
+            guard optSelected.contains($0.id) else { return false }
+            let willDownscale = min($0.asset.pixelWidth, $0.asset.pixelHeight) > 1080
+            // Lo ya convertido por nosotros solo vuelve a entrar si MÁXIMO va
+            // a reescalar de verdad; si no, sería recomprimir lo comprimido.
+            if ConvertedRegistry.shared.contains($0.id) {
+                return profile == .aggressive && willDownscale
+            }
+            guard codecByID[$0.id] == "HEVC ✓" else { return true }
+            // Ya es HEVC: solo aporta algo si MÁXIMO va a bajar la resolución
+            return profile == .aggressive && willDownscale
         }
-        optimize(targets, video: true, profile: profile)
     }
     func convertSelectedRaws()   { optimize(selectedRaws, video: false) }
     /// Conversión individual desde la ficha del vídeo, con perfil elegido.
@@ -44,11 +58,29 @@ extension PhotosModel {
         }
         optimizing = true
         Task {
+            // Se convierte TODA la cola antes de tocar Fotos: así el borrado
+            // (que pide confirmación al sistema) sale una sola vez al final,
+            // en vez de una por lote.
+            var pending: [Ready] = []
+            var noGain = 0, failed = 0
             var job: OptimizeJob? = OptimizeJob(targets: fresh, video: video, profile: profile)
             while let j = job {
-                await runJob(j)
+                let r = await convertPhase(j)
+                pending += r.ready
+                noGain += r.noGain
+                failed += r.failed
+                // DETENER corta la cola entera, no solo el lote en curso; lo ya
+                // convertido sí se confirma para no tirar ese trabajo.
+                if stopRequested {
+                    if !queued.isEmpty {
+                        AppLog.log("  cola cancelada por el usuario: \(queued.count) lotes descartados")
+                        queued.removeAll()
+                    }
+                    break
+                }
                 job = queued.isEmpty ? nil : queued.removeFirst()
             }
+            await commitPhase(pending, noGain: noGain, failed: failed)
             optimizing = false
         }
     }
@@ -56,7 +88,16 @@ extension PhotosModel {
     /// Cancela un lote que aún no ha empezado.
     func dropQueued(_ id: UUID) { queued.removeAll { $0.id == id } }
 
-    private func runJob(_ job: OptimizeJob) async {
+    /// Un elemento ya convertido a fichero temporal, a la espera de commit.
+    struct Ready {
+        let pa: PhotoAsset
+        let url: URL
+        let newSize: Int64
+        let video: Bool
+    }
+
+    /// FASE 1 de un lote: convertir a temporales. No toca la fototeca.
+    private func convertPhase(_ job: OptimizeJob) async -> (ready: [Ready], noGain: Int, failed: Int) {
         let targets = job.targets
         let video = job.video
         let profile = job.profile
@@ -72,7 +113,7 @@ extension PhotosModel {
         // FASE 1: convertir todo a ficheros temporales (sin tocar Fotos).
         // Vídeos en serie (comparten el codificador hardware); RAWs con
         // 3 trabajadores en paralelo. Pausa/stop entre elementos.
-        var ready: [(pa: PhotoAsset, url: URL, newSize: Int64)] = []
+        var ready: [Ready] = []
         var processed = 0
 
         @MainActor func handleResult(_ pa: PhotoAsset, _ outURL: URL?) {
@@ -95,7 +136,7 @@ extension PhotosModel {
                 return
             }
             AppLog.log("  \(pa.filename ?? pa.id): convertido \(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB")
-            ready.append((pa, outURL, newSize))
+            ready.append(Ready(pa: pa, url: outURL, newSize: newSize, video: video))
         }
 
         if video {
@@ -147,13 +188,33 @@ extension PhotosModel {
             if stopRequested { AppLog.log("  detenido por el usuario en \(processed)/\(n)") }
         }
 
-        // FASE 2: importar → verificar → borrar. El borrado (con su única
-        // confirmación del sistema) solo llega si los importados existen
-        // e informan dimensiones válidas. Si cancelas el diálogo, conviven
-        // original y convertido: nunca te quedas sin ninguno.
+        optSelected.subtract(Set(targets.map(\.id)))
+        inFlightIDs = []
+        let wall = Date().timeIntervalSince(batchStart)
+        if processed > 0, wall > 0 {
+            AppLog.log(String(format: "PROFILE lote %@: %d elementos en %.0fs (%.1f/min) con %d trabajadores",
+                              video ? "vídeo" : "RAW", processed, wall,
+                              Double(processed) / wall * 60,
+                              video ? 1 : Self.rawWorkers))
+        }
+        return (ready, noGain, failed)
+    }
+
+    /// FASE 2, UNA sola vez por cola: importar → verificar → borrar.
+    ///
+    /// Antes iba dentro de cada lote, así que encolar tres conversiones
+    /// significaba tres confirmaciones de borrado del sistema. Ahora se
+    /// convierte toda la cola y se confirma al final, de una vez.
+    ///
+    /// El borrado solo llega si los importados existen y declaran dimensiones
+    /// válidas; si cancelas el diálogo conviven original y convertido, nunca te
+    /// quedas sin ninguno.
+    private func commitPhase(_ ready: [Ready], noGain: Int, failed failedIn: Int) async {
+        var failed = failedIn
         var done = 0
         var savedTotal: Int64 = 0
         var committedIDs: Set<String> = []
+
         if !ready.isEmpty {
             optProgress = String(format: t("importing %d into Photos…"), ready.count)
             optFraction = nil
@@ -172,10 +233,11 @@ extension PhotosModel {
                         let resOpts = PHAssetResourceCreationOptions()
                         if let origName {
                             let base = (origName as NSString).deletingPathExtension
-                            resOpts.originalFilename = base + (video ? ".mov" : ".heic")
+                            resOpts.originalFilename = base + (item.video ? ".mov" : ".heic")
                         }
                         let req = PHAssetCreationRequest.forAsset()
-                        req.addResource(with: video ? .video : .photo, fileURL: item.url, options: resOpts)
+                        req.addResource(with: item.video ? .video : .photo,
+                                        fileURL: item.url, options: resOpts)
                         req.creationDate = item.pa.asset.creationDate
                         req.location = item.pa.asset.location
                         if let ph = req.placeholderForCreatedAsset {
@@ -216,6 +278,15 @@ extension PhotosModel {
                     done = batch.count
                     savedTotal = batch.map { $0.pa.fileSize - $0.newSize }.reduce(0, +)
                     committedIDs = Set(batch.map(\.pa.id))
+                    // Apuntar lo convertido: única forma exacta de no volver a
+                    // ofrecer comprimir algo que ya comprimimos. El orden de
+                    // `created.ids` sigue al de `batch`: los placeholders se
+                    // crean en ese mismo bucle.
+                    for (i, item) in batch.enumerated() where i < created.ids.count {
+                        ConvertedRegistry.shared.record(id: created.ids[i],
+                                                        originalBytes: item.pa.fileSize,
+                                                        newBytes: item.newSize)
+                    }
                     AppLog.log("  originales borrados tras verificación: \(done)")
                 } catch {
                     AppLog.log("  borrado cancelado/fallido: conviven original y convertido: \(error.localizedDescription)")
@@ -228,22 +299,13 @@ extension PhotosModel {
 
         FreedTracker.shared.addTrashed(savedTotal)
         removeFromLists(committedIDs)
-        optSelected.subtract(Set(targets.map(\.id)))
         workingAsset = nil
         optProgress = ""
         optFraction = nil
         downloadFraction = nil
-        inFlightIDs = []
         SoundFX.shared.play(done > 0 || noGain > 0 ? .done : .error)
-        let wall = Date().timeIntervalSince(batchStart)
-        if processed > 0, wall > 0 {
-            AppLog.log(String(format: "PROFILE lote %@: %d elementos en %.0fs (%.1f/min) con %d trabajadores",
-                              video ? "vídeo" : "RAW", processed, wall,
-                              Double(processed) / wall * 60,
-                              video ? 1 : Self.rawWorkers))
-        }
         AppLog.log("OPTIMIZE fin: \(done) ok, \(noGain) sin ganancia, \(failed) errores, ahorro \(formatBytes(savedTotal))")
-        lastResult = String(format: t("%@: %d optimized, %d no gain, %d errors — %@ saved (log: ~/Library/Logs/NeonSweep.log)"),
+        lastResult = String(format: t("%@: %d optimized, %d no gain, %d errors — %@ saved"),
                             failed == 0 ? "OK" : t("WARN"), done, noGain, failed, formatBytes(savedTotal))
     }
 }

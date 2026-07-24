@@ -49,9 +49,18 @@ extension PhotosModel {
                            return v > 0 ? Double(v) / 100 : 0.45 }()
             let maxPct = { let v = UserDefaults.standard.integer(forKey: "video.max.pct")
                            return v > 0 ? Double(v) / 100 : 0.12 }()
+            // MÍNIMO apunta al 78%: un ahorro de ~22% que deja margen sobre el
+            // filtro de "solo vale si encoge ≥15%", porque el codificador no
+            // clava el objetivo y quedarse en el 86% real tiraría la conversión.
+            let lightPct = { let v = UserDefaults.standard.integer(forKey: "video.light.pct")
+                             return v > 0 ? Double(v) / 100 : 0.78 }()
             var target: Double
             var scale = 1.0
             switch profile {
+            case .light:
+                // misma resolución, recorte suave: para material que ya está
+                // razonablemente comprimido y no admite mucho más
+                target = min(max(srcBps * lightPct, 8_000_000), 60_000_000)
             case .optimal:
                 // misma resolución, ~45% del bitrate original (HEVC rinde eso
                 // frente a H.264 con pérdida casi invisible)

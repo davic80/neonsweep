@@ -271,11 +271,14 @@
 "batch profile:" = "perfil del lote:";
 "HEIC quality:" = "calidad HEIC:";
 "// last FULL analysis %d days ago — RE-ANALYZE ALL also matches new photos against old ones" = "// último análisis COMPLETO hace %d días — RE-ANALIZAR TODO cruza también fotos nuevas con antiguas";
-"[optimal]" = "[óptima]";
-"[max 1080p]" = "[máxima 1080p]";
-"OPTIMAL — HEVC, same resolution" = "ÓPTIMA — HEVC, misma resolución";
+"[optimum]" = "[óptimo]";
+"[minimum]" = "[mínimo]";
+"[maximum 1080p]" = "[máximo 1080p]";
+"OPTIMAL — HEVC, same resolution" = "ÓPTIMO — HEVC, misma resolución";
+"MINIMUM — gentle, same resolution" = "MÍNIMO — suave, misma resolución";
+"trims about 20% with barely any quality cost; for footage that is already fairly compressed" = "recorta un 20% aprox. sin apenas coste de calidad; para material ya bastante comprimido";
 "nearly invisible quality loss; ideal to keep as archive" = "pérdida casi invisible; ideal para conservar como archivo";
-"MAX — 1080p + strong compression" = "MÁXIMA — 1080p + compresión fuerte";
+"MAX — 1080p + strong compression" = "MÁXIMO — 1080p + compresión fuerte";
 "downscales 4K to 1080p; fine for casual viewing and sharing" = "baja el 4K a 1080p; de sobra para ver y compartir";
 "estimated: ~%@ (−%d%%)" = "estimado: ~%@ (−%d%%)";
 "[ CONVERT ]" = "[ CONVERTIR ]";
@@ -430,9 +433,22 @@
 "Adds it to the queue — it starts when the current one finishes" = "Lo añade a la cola — empieza cuando termine la actual";
 
 /* perfiles de vídeo: la nota dice lo que pasará con ESE vídeo */
-"MAX — strong compression, same resolution" = "MÁXIMA — compresión fuerte, misma resolución";
+"MAX — strong compression, same resolution" = "MÁXIMO — compresión fuerte, misma resolución";
 "downscales to 1080p; fine for casual viewing and sharing" = "baja a 1080p; de sobra para ver y compartir";
 "already 1080p or below — resolution untouched, only the bitrate drops" = "ya está en 1080p o menos — no se toca la resolución, solo baja el bitrate";
 
 /* descarga desde iCloud, antes invisible */
 "downloading from iCloud… %d%%" = "descargando de iCloud… %d%%";
+
+/* ya comprimido: evitar recomprimir lo comprimido */
+"Already HEVC at 1080p or below — nothing left to gain" = "Ya es HEVC a 1080p o menos — no queda nada que ganar";
+"TIGHT" = "COMPACTO";
+"%@: %d optimized, %d no gain, %d errors — %@ saved" = "%@: %d optimizados, %d sin ganancia, %d errores — %@ ahorrados";
+"[ log ]" = "[ log ]";
+"✓ NeonSweep already converted this on %@ (%@ → %@). Converting again only costs quality." = "✓ NeonSweep ya convirtió este vídeo el %@ (%@ → %@). Volver a convertirlo solo cuesta calidad.";
+"⚠︎ looks already compressed (%.2f bits/pixel) — little to gain" = "⚠︎ parece ya comprimido (%.2f bits/píxel) — poco que ganar";
+"Already converted by NeonSweep" = "Ya convertido por NeonSweep";
+"NS ✓" = "NS ✓";
+"Converted by NeonSweep (%@ → %@)" = "Convertido por NeonSweep (%@ → %@)";
+"Looks already compressed (%.2f bits/pixel)" = "Parece ya comprimido (%.2f bits/píxel)";
+"Everything converts first; Photos is only touched once, at the end" = "Primero se convierte todo; Fotos solo se toca una vez, al final";

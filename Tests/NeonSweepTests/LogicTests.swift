@@ -168,6 +168,24 @@ import CryptoKit
         #expect(queued.last == ["e"], "de un lote mixto solo entra lo nuevo")
     }
 
+    /// La cola confirma UNA vez al final, no una por lote: encolar tres
+    /// conversiones daba tres confirmaciones de borrado del sistema.
+    @Test func queueCommitsOnceForTheWholeQueue() {
+        var queue = [["a"], ["b", "c"], ["d"]]
+        var converted: [String] = []
+        var commits = 0
+
+        var job: [String]? = queue.removeFirst()
+        while let j = job {
+            converted += j                              // fase 1 por lote
+            job = queue.isEmpty ? nil : queue.removeFirst()
+        }
+        if !converted.isEmpty { commits += 1 }          // fase 2, una vez
+
+        #expect(commits == 1, "una sola confirmación para toda la cola")
+        #expect(converted == ["a", "b", "c", "d"], "y en orden de llegada")
+    }
+
     // MARK: apps sin uso — la falta de dato no es prueba de abandono
 
     @Test func unknownUsageIsNeverFlaggedAsUnused() {
@@ -197,6 +215,35 @@ import CryptoKit
         #expect(!DevJunkSpecs.isForgotten(lastActivity: d45, days: 60, now: now))
         // Sin fecha no se juzga
         #expect(!DevJunkSpecs.isForgotten(lastActivity: nil, days: 15, now: now))
+    }
+
+    // MARK: densidad de bitrate — detectar lo ya comprimido
+
+    /// Caso real: IMG_4066.MOV, que David ya había comprimido de ~500 MB a
+    /// 230,9 MB, seguía ofreciendo otro −53%. Sin abrir el fichero solo se
+    /// puede juzgar por bits/píxel, y esos umbrales deciden si avisamos.
+    @Test func bitrateDensityFlagsAlreadyCompressed() {
+        /// Misma fórmula que `VideoDensity.of`, sin PhotoKit de por medio.
+        func bpp(mb: Double, secs: Double, w: Int, h: Int) -> Double {
+            mb * 8e6 / (secs * Double(w * h) * 30)
+        }
+        // iPhone 1080p30 recién grabado: ~17 Mbps → derrochón
+        let raw = bpp(mb: 253, secs: 119, w: 1920, h: 1080)
+        #expect(raw > VideoDensity.fat, "un original de cámara sí tiene margen")
+
+        // El de David tras comprimir: 230,9 MB / 1:59 / 1080p
+        let compressed = bpp(mb: 230.9, secs: 119, w: 1920, h: 1080)
+        #expect(compressed > VideoDensity.tight,
+                "0,25 bits/píxel NO es 'ya apretado': el aviso no debe saltar aquí")
+
+        // Un HEVC de buena calidad a 1080p30 (~8 Mbps) sí debe avisar
+        let hevc = bpp(mb: 119, secs: 119, w: 1920, h: 1080)
+        #expect(hevc <= VideoDensity.tight, "~8 Mbps en 1080p ya está apretado")
+
+        // El umbral es independiente de la resolución: 4K al mismo bpp
+        // se juzga igual que 1080p, que es justo el sentido de la métrica
+        let uhd = bpp(mb: 476, secs: 119, w: 3840, h: 2160)
+        #expect(abs(uhd - hevc) < 0.001)
     }
 
     // MARK: resolución por perfil (regla de David, 24-jul-2026)

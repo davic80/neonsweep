@@ -2,6 +2,21 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.8.0] — 2026-07-24
+
+### Added
+- **NeonSweep remembers what it converted.** A video already recompressed from ~500 MB to 231 MB was still being offered another −53%. Guessing from the codec does not work here: reading it means opening the file, and 83% of this library lives only in iCloud, so `codecLabel` returns `?` for 531 of 639 videos. Bitrate density does not settle it either — that video sits at 0.25 bits/pixel, which is not "tight". The only exact answer is to remember: every conversion now records the new asset's id, and both profiles are disabled for it with the date and the sizes.
+- **Third profile: MINIMUM** — trims ~20% at barely any quality cost, for footage that is already fairly compressed. The scale now reads MINIMUM → OPTIMUM → MAXIMUM.
+- **`TIGHT` marker** in the video list for anything under 0.13 bits/pixel — a hint, not a certainty, available instantly because it needs no file access.
+- The result line in the footer has a **`[ log ]` button** that opens `~/Library/Logs/NeonSweep.log`.
+
+### Changed
+- **The whole queue converts before Photos is touched once.** Queueing three conversions meant three separate system deletion prompts; now everything converts and a single confirmation lands at the end. `[ STOP ]` cancels the rest of the queue too, while still committing what was already converted.
+- Codecs are **persisted and resolved in parallel**. They were computed one by one and thrown away on quit, so a big library sat on `?` for a long time every launch.
+- Spanish profile names are masculine — `ÓPTIMO`, `MÁXIMO` — and `TIGHT` reads `COMPACTO`.
+- `MAXIMUM` is disabled on HEVC video already at 1080p or below: since 0.7.3 stopped upscaling, there is nothing left for it to do there but lose quality.
+- The batch button count now uses the same rule as the conversion itself; it used to promise more items than would actually run.
+
 ## [0.7.4] — 2026-07-24
 
 ### Fixed

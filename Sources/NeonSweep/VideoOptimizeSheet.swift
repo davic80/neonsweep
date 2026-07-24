@@ -15,22 +15,54 @@ struct VideoOptimizeSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             if let pa {
                 header(pa)
+                // Dato exacto: esta conversión la hicimos nosotros. Manda
+                // sobre cualquier heurística.
+                let mine = ConvertedRegistry.shared.entry(pa.id)
+                if let mine {
+                    Text(String(format: t("✓ NeonSweep already converted this on %@ (%@ → %@). Converting again only costs quality."),
+                                Self.df.string(from: mine.date),
+                                formatBytes(mine.originalBytes), formatBytes(mine.newBytes)))
+                        .font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 4).padding(.horizontal, 8)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.amber, lineWidth: 1))
+                } else if let d = VideoDensity.of(pa), d.level == .alreadyTight {
+                    // Pista, no certeza: solo mira bitrate por píxel.
+                    Text(String(format: t("⚠︎ looks already compressed (%.2f bits/pixel) — little to gain"), d.bpp))
+                        .font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 4).padding(.horizontal, 8)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.amber, lineWidth: 1))
+                }
+                profileCard(pa, profile: .light,
+                            title: t("MINIMUM — gentle, same resolution"),
+                            detail: t("trims about 20% with barely any quality cost; for footage that is already fairly compressed"),
+                            disabled: false, disabledNote: "")
                 profileCard(pa, profile: .optimal,
                             title: t("OPTIMAL — HEVC, same resolution"),
                             detail: t("nearly invisible quality loss; ideal to keep as archive"),
-                            disabled: model.codecByID[pa.id] == "HEVC ✓",
-                            disabledNote: t("Already HEVC — recompressing won't shrink it"))
+                            disabled: mine != nil || model.codecByID[pa.id] == "HEVC ✓",
+                            disabledNote: mine != nil ? t("Already converted by NeonSweep")
+                                                      : t("Already HEVC — recompressing won't shrink it"))
                 // La nota dice lo que va a pasar con ESTE vídeo: prometer
                 // "baja a 1080p" sobre uno que ya está en 1080p o por debajo
                 // era mentir, y ahí lo único que cambia es el bitrate.
+                // MÁXIMA solo se justificaba por "reescala a 1080p". Desde que
+                // respeta los vídeos que ya están en 1080p o menos, aplicarla a
+                // un HEVC de esa resolución no reescala NADA: solo recomprime
+                // lo comprimido. Ahí también se desactiva.
+                let willDownscale = min(pa.asset.pixelWidth, pa.asset.pixelHeight) > 1080
                 profileCard(pa, profile: .aggressive,
-                            title: min(pa.asset.pixelWidth, pa.asset.pixelHeight) > 1080
+                            title: willDownscale
                                 ? t("MAX — 1080p + strong compression")
                                 : t("MAX — strong compression, same resolution"),
-                            detail: min(pa.asset.pixelWidth, pa.asset.pixelHeight) > 1080
+                            detail: willDownscale
                                 ? t("downscales to 1080p; fine for casual viewing and sharing")
                                 : t("already 1080p or below — resolution untouched, only the bitrate drops"),
-                            disabled: false, disabledNote: "")
+                            disabled: (mine != nil && !willDownscale)
+                                || (!willDownscale && model.codecByID[pa.id] == "HEVC ✓"),
+                            disabledNote: mine != nil ? t("Already converted by NeonSweep")
+                                                      : t("Already HEVC at 1080p or below — nothing left to gain"))
                 Text(t("The original stays 30 days in Recently Deleted; only replaced if it truly shrinks ≥15%."))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             } else {
@@ -52,6 +84,10 @@ struct VideoOptimizeSheet: View {
         .frame(width: 560)
         .background(Theme.bg)
     }
+
+    static let df: DateFormatter = {
+        let d = DateFormatter(); d.dateStyle = .medium; d.timeStyle = .none; return d
+    }()
 
     private func header(_ pa: PhotoAsset) -> some View {
         let mins = Int(pa.asset.duration) / 60
