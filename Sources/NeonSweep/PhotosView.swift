@@ -257,9 +257,18 @@ struct PhotosView: View {
                                     .overlay(RoundedRectangle(cornerRadius: 3)
                                         .stroke(Theme.neon, lineWidth: 1))
                             }
-                            ProgressStrip(label: model.paused ? t("PAUSED — " ) + model.optProgress
-                                                              : model.optProgress,
-                                          fraction: model.optFraction)
+                            // Mientras baja de iCloud manda la barra de descarga:
+                            // la de conversión estaría clavada en 0% y parecería
+                            // colgada, cuando en realidad la espera es de red.
+                            if let dl = model.downloadFraction {
+                                ProgressStrip(label: String(format: t("downloading from iCloud… %d%%"),
+                                                            Int(dl * 100)),
+                                              fraction: dl)
+                            } else {
+                                ProgressStrip(label: model.paused ? t("PAUSED — " ) + model.optProgress
+                                                                  : model.optProgress,
+                                              fraction: model.optFraction)
+                            }
                             Button { model.paused.toggle() } label: {
                                 Text(model.paused ? t("[ RESUME ]") : t("[ PAUSE ]"))
                                     .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
@@ -576,8 +585,8 @@ struct PhotosView: View {
                 Text("[·]").font(Theme.body).foregroundStyle(Theme.grayDark)
                     .help(t("Already HEVC — recompressing won't shrink it"))
             }
-            AssetThumb(asset: m.asset,
-                       width: model.rowThumbWidth, height: model.rowThumbHeight)
+            AssetThumb(asset: m.asset, side: model.rowThumbBox)
+                .frame(width: model.rowThumbBox)   // columna de ancho fijo
                 .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
                 .help(t("Click to preview"))
             if m.asset.mediaType == .video {
@@ -705,7 +714,10 @@ struct PhotosView: View {
     private var footer: some View {
         HStack {
             if model.optimizing {
-                Text(model.optProgress)
+                Text(model.downloadFraction != nil
+                     ? String(format: t("downloading from iCloud… %d%%"),
+                              Int((model.downloadFraction ?? 0) * 100))
+                     : model.optProgress)
                     .font(Theme.mono(12, .bold)).foregroundStyle(Theme.neon)
                     .shadow(color: Theme.neon.opacity(0.5), radius: 4)
                 BlinkingCursor()
@@ -738,24 +750,36 @@ struct PhotosView: View {
 /// Miniatura de un PHAsset vía PHImageManager (asíncrona, caché del sistema).
 struct AssetThumb: View {
     let asset: PHAsset
-    var width: CGFloat = 92
-    var height: CGFloat?          // nil = cuadrada
+    /// Caja máxima; la miniatura se ajusta DENTRO conservando su proporción.
+    var boxWidth: CGFloat = 92
+    var boxHeight: CGFloat = 92
     @State private var image: NSImage?
 
-    /// Azúcar para el caso cuadrado, que es el habitual.
+    /// Caja cuadrada, que es el caso habitual (rejillas).
     init(asset: PHAsset, side: CGFloat = 92) {
         self.asset = asset
-        self.width = side
-        self.height = nil
+        self.boxWidth = side
+        self.boxHeight = side
     }
 
+    /// Caja rectangular (filas de lista: manda el alto, el ancho se adapta).
     init(asset: PHAsset, width: CGFloat, height: CGFloat) {
         self.asset = asset
-        self.width = width
-        self.height = height
+        self.boxWidth = width
+        self.boxHeight = height
     }
 
-    private var h: CGFloat { height ?? width }
+    /// Tamaño real de la miniatura: un vídeo o foto vertical sale VERTICAL.
+    /// Antes todo se recortaba a la caja, así que un 9:16 se veía como un
+    /// cuadrado con la cabeza y los pies cortados. `pixelWidth/Height` de
+    /// PHAsset ya vienen con la orientación aplicada.
+    private var fitted: CGSize {
+        let w = CGFloat(max(1, asset.pixelWidth))
+        let h = CGFloat(max(1, asset.pixelHeight))
+        let s = min(boxWidth / w, boxHeight / h)
+        return CGSize(width: max(2, (w * s).rounded()),
+                      height: max(2, (h * s).rounded()))
+    }
 
     var body: some View {
         ZStack {
@@ -766,18 +790,16 @@ struct AssetThumb: View {
                 Text("…").font(Theme.small).foregroundStyle(Theme.grayDark)
             }
         }
-        // El recorte y la forma de pulsación van AQUÍ, no en quien la usa: una
-        // foto vertical con scaledToFill se sale del marco por arriba y por
-        // abajo, y `.clipped()` recorta el dibujo pero NO el área sensible al
-        // clic. Sin esto, pulsar una miniatura activaba la de la fila de al
-        // lado. Por lo mismo, el alto se pide aquí: enmarcar por fuera con un
-        // alto menor encoge el dibujo pero deja el área de clic desbordada.
-        .frame(width: width, height: h)
+        // El recorte y la forma de pulsación van AQUÍ, no en quien la usa:
+        // `.clipped()` recorta el dibujo pero NO el área sensible al clic, y
+        // enmarcar por fuera dejaba esa área desbordada pisando la fila vecina.
+        .frame(width: fitted.width, height: fitted.height)
         .clipShape(RoundedRectangle(cornerRadius: 3))
         .contentShape(RoundedRectangle(cornerRadius: 3))
         .onAppear { load() }
         // Al cambiar el tamaño se vuelve a pedir con más resolución
-        .onChange(of: width) { _, _ in load() }
+        .onChange(of: boxWidth) { _, _ in load() }
+        .onChange(of: boxHeight) { _, _ in load() }
     }
 
     private func load() {
@@ -786,8 +808,9 @@ struct AssetThumb: View {
         opts.resizeMode = .fast
         opts.isNetworkAccessAllowed = false
         let scale: CGFloat = 2   // margen para pantallas Retina
+        let f = fitted
         PHImageManager.default().requestImage(
-            for: asset, targetSize: CGSize(width: width * scale, height: h * scale),
+            for: asset, targetSize: CGSize(width: f.width * scale, height: f.height * scale),
             contentMode: .aspectFill, options: opts
         ) { img, _ in
             if let img { image = img }

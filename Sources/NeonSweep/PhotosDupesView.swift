@@ -163,26 +163,26 @@ extension PhotosView {
             Text(t("thumbs:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
                 .fixedSize()
                 .padding(.leading, 10)
-            Button { model.bumpThumb(-24) } label: {
+            Button { model.bumpThumb(-1) } label: {
                 Text("[-]").font(Theme.mono(10, .bold))
-                    .foregroundStyle(model.thumbSide <= 64 ? Theme.grayDark : Theme.neonDim)
+                    .foregroundStyle(model.canShrinkThumb ? Theme.neonDim : Theme.grayDark)
                     .frame(minWidth: 26, minHeight: 24).contentShape(Rectangle())
             }
             .buttonStyle(NeonClick())
-            .disabled(model.thumbSide <= 64)
+            .disabled(!model.canShrinkThumb)
             .accessibilityLabel(t("thumbs:") + " −")
-            Button { model.bumpThumb(24) } label: {
+            Button { model.bumpThumb(1) } label: {
                 Text("[+]").font(Theme.mono(10, .bold))
-                    .foregroundStyle(model.thumbSide >= 220 ? Theme.grayDark : Theme.neonDim)
+                    .foregroundStyle(model.canGrowThumb ? Theme.neonDim : Theme.grayDark)
                     .frame(minWidth: 26, minHeight: 24).contentShape(Rectangle())
             }
             .buttonStyle(NeonClick())
-            .disabled(model.thumbSide >= 220)
+            .disabled(!model.canGrowThumb)
             .accessibilityLabel(t("thumbs:") + " +")
             Text("\(Int(model.thumbSide))px")
                 .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
                 .fixedSize()
-                .frame(width: 38, alignment: .leading)
+                .frame(width: 42, alignment: .leading)
         }
     }
 
@@ -215,19 +215,20 @@ extension PhotosView {
         let hasGPS = m.asset.location != nil
         let side = CGFloat(model.thumbSide)
         return VStack(spacing: 2) {
-            ZStack(alignment: .topLeading) {
-                AssetThumb(asset: m.asset, side: side)
-                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(
-                        isSel ? Theme.neon : Theme.border, lineWidth: isSel ? 2 : 1))
-                if isBest {
-                    Text(t("BEST"))
-                        .font(Theme.mono(8, .bold)).foregroundStyle(Theme.bg)
-                        .padding(.horizontal, 3).padding(.vertical, 1)
-                        .background(Theme.neon)
-                } else {
-                    // ☆ arriba a la derecha: quedarse esta en lugar de la actual
-                    HStack {
-                        Spacer()
+            AssetThumb(asset: m.asset, side: side)
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(
+                    isSel ? Theme.neon : Theme.border, lineWidth: isSel ? 2 : 1))
+                .overlay(alignment: .topLeading) {
+                    if isBest {
+                        Text(t("BEST"))
+                            .font(Theme.mono(8, .bold)).foregroundStyle(Theme.bg)
+                            .padding(.horizontal, 3).padding(.vertical, 1)
+                            .background(Theme.neon)
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    // ☆: quedarse esta en lugar de la actual
+                    if !isBest {
                         Button { model.setBest(g, to: m.id) } label: {
                             Text("☆").font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
                                 .padding(4).background(Theme.bg.opacity(0.7))
@@ -238,8 +239,7 @@ extension PhotosView {
                         .accessibilityLabel(t("Keep this one instead (becomes the BEST)"))
                     }
                 }
-            }
-            .frame(width: side)
+                .frame(width: side, height: side)
             Text(isSel ? t("[x] delete") : (isBest ? "★ " + t("kept") : "[ ] " + formatBytes(m.fileSize)))
                 .font(Theme.mono(10, isSel ? .bold : .regular))
                 .foregroundStyle(isSel ? Theme.amber : (isBest ? Theme.neonDim : Theme.grayDark))

@@ -17,6 +17,7 @@ enum Diag {
     static func runIfRequested() {
         runExportRawIfRequested()
         runFindIfRequested()
+        runCloudIfRequested()
         let args = CommandLine.arguments
         guard let i = args.firstIndex(of: "--diag-videos"), args.count > i + 1 else { return }
         let df = DateFormatter()
@@ -184,5 +185,49 @@ enum Diag {
         }
         out("\nrevisadas \(checked) imágenes; sin encontrar: \(wanted.isEmpty ? "—" : wanted.joined(separator: ", "))")
         exit(0)
+    }
+
+    /// `NeonSweep --diag-cloud` — cuántos vídeos grandes NO están descargados.
+    /// Sirve para saber si la barra de "descargando de iCloud" se puede llegar
+    /// a ver en este Mac: pedir el AVAsset SIN acceso de red devuelve nil justo
+    /// cuando el original solo vive en la nube.
+    static func runCloudIfRequested() {
+        guard CommandLine.arguments.contains("--diag-cloud") else { return }
+        let sem = DispatchSemaphore(value: 0)
+        Task { @MainActor in
+            guard await requestAccess() else { print("sin permiso de Fotos"); sem.signal(); return }
+            let opts = PHFetchOptions()
+            opts.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
+            opts.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            let fetch = PHAsset.fetchAssets(with: opts)
+            var assets: [PHAsset] = []
+            fetch.enumerateObjects { a, _, _ in assets.append(a) }
+            let sample = Array(assets.prefix(40))
+
+            var local = 0, cloud = 0
+            for a in sample {
+                let o = PHVideoRequestOptions()
+                o.isNetworkAccessAllowed = false        // clave: sin red
+                o.deliveryMode = .highQualityFormat
+                let got: Bool = await withCheckedContinuation { c in
+                    PHImageManager.default().requestAVAsset(forVideo: a, options: o) { av, _, _ in
+                        c.resume(returning: av != nil)
+                    }
+                }
+                if got { local += 1 } else { cloud += 1 }
+            }
+            print("muestra de \(sample.count) vídeos: \(local) en disco, \(cloud) solo en iCloud")
+            sem.signal()
+        }
+        sem.wait()
+        exit(0)
+    }
+
+    private static func requestAccess() async -> Bool {
+        await withCheckedContinuation { c in
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { st in
+                c.resume(returning: st == .authorized || st == .limited)
+            }
+        }
     }
 }

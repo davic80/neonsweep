@@ -50,20 +50,20 @@ extension PhotosView {
         let isSel = model.selected.contains(m.id)
         let hasGPS = m.asset.location != nil
         return VStack(alignment: .leading, spacing: 3) {
-            ZStack(alignment: .topLeading) {
-                AssetThumb(asset: m.asset, side: side)
-                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(
-                        isSel ? Theme.amber : (isKeep ? Theme.neon : Theme.border),
-                        lineWidth: isSel || isKeep ? 2 : 1))
-                    .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
-                if isKeep {
-                    Text(t("KEEP"))
-                        .font(Theme.mono(8, .bold)).foregroundStyle(Theme.bg)
-                        .padding(.horizontal, 3).padding(.vertical, 1)
-                        .background(Theme.neon)
-                } else {
-                    HStack {
-                        Spacer()
+            AssetThumb(asset: m.asset, side: side)
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(
+                    isSel ? Theme.amber : (isKeep ? Theme.neon : Theme.border),
+                    lineWidth: isSel || isKeep ? 2 : 1))
+                .overlay(alignment: .topLeading) {
+                    if isKeep {
+                        Text(t("KEEP"))
+                            .font(Theme.mono(8, .bold)).foregroundStyle(Theme.bg)
+                            .padding(.horizontal, 3).padding(.vertical, 1)
+                            .background(Theme.neon)
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if !isKeep {
                         Button { model.setTwinKeeper(g.id, to: m.id) } label: {
                             Text("☆").font(Theme.mono(11, .bold)).foregroundStyle(Theme.amber)
                                 .padding(4).background(Theme.bg.opacity(0.7))
@@ -72,9 +72,9 @@ extension PhotosView {
                         .buttonStyle(NeonClick())
                         .help(t("Keep this copy instead"))
                     }
-                    .frame(width: side)
                 }
-            }
+                .onTapGesture { preview = PreviewTarget(id: m.id, asset: m.asset) }
+                .frame(width: side, height: side)
             // Los datos que de verdad distinguen dos copias del mismo vídeo
             twinLine(m.filename ?? "—", Theme.gray, bold: true)
             twinLine(m.asset.creationDate.map {

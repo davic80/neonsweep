@@ -116,10 +116,16 @@ extension PhotosModel {
                 let plan = TranscodePlan.make(for: pa, profile: profile)
                 let flag = pauseFlag
                 let outURL = await Task.detached(priority: .userInitiated) {
-                    await Self.exportVideo(pa.asset, plan: plan, isPaused: { flag.value }) { itemFrac in
+                    await Self.exportVideo(
+                        pa.asset, plan: plan, isPaused: { flag.value },
+                        downloading: { frac in
+                            Task { @MainActor in self.downloadFraction = frac }
+                        }
+                    ) { itemFrac in
                         Task { @MainActor in self.optFraction = (base + itemFrac) / Double(n) }
                     }
                 }.value
+                downloadFraction = nil
                 handleResult(pa, outURL)
             }
         } else {
@@ -226,6 +232,7 @@ extension PhotosModel {
         workingAsset = nil
         optProgress = ""
         optFraction = nil
+        downloadFraction = nil
         inFlightIDs = []
         SoundFX.shared.play(done > 0 || noGain > 0 ? .done : .error)
         let wall = Date().timeIntervalSince(batchStart)

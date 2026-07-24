@@ -85,6 +85,10 @@ final class PhotosModel: ObservableObject {
     @Published var fraction: Double?      // del análisis
     @Published var optProgress = ""       // de la optimización (independiente)
     @Published var optFraction: Double?
+    /// Fracción de la descarga desde iCloud del elemento en curso; nil = no hay
+    /// descarga. Se muestra aparte porque puede llevarse la mayor parte de la
+    /// espera y antes se veía como una barra congelada en 0%.
+    @Published var downloadFraction: Double?
     @Published var paused = false { didSet { pauseFlag.value = paused } }
     var stopRequested = false
     let pauseFlag = Flag()   // legible desde los hilos de transcodificación
@@ -665,21 +669,35 @@ final class PhotosModel: ObservableObject {
     }
 
     /// El usuario elige otra "mejor" para el grupo; la anterior pasa a ser marcable.
-    /// Lado de la miniatura en la rejilla de duplicados (persistido).
+    /// Tamaños de miniatura disponibles. Pasos fijos en vez de un continuo:
+    /// los intermedios no aportaban nada y el valor guardado quedaba en cifras
+    /// arbitrarias tipo 172 px.
+    nonisolated static let thumbSizes: [Double] = [64, 128, 192, 256]
+
+    /// Lado de la miniatura (persistido). Un valor viejo fuera de la escala se
+    /// ajusta al paso más cercano.
     @Published var thumbSide: Double = {
         let v = UserDefaults.standard.double(forKey: "photos.thumbSide")
-        return v > 0 ? min(220, max(64, v)) : 120
+        guard v > 0 else { return 128 }
+        return PhotosModel.thumbSizes.min { abs($0 - v) < abs($1 - v) } ?? 128
     }()
 
-    func bumpThumb(_ delta: Double) {
-        thumbSide = min(220, max(64, thumbSide + delta))
+    var canGrowThumb: Bool { thumbSide < Self.thumbSizes.last! }
+    var canShrinkThumb: Bool { thumbSide > Self.thumbSizes.first! }
+
+    /// Salta al paso siguiente o anterior de la escala.
+    func bumpThumb(_ direction: Int) {
+        let sizes = Self.thumbSizes
+        let i = sizes.firstIndex(of: thumbSide)
+            ?? sizes.indices.min { abs(sizes[$0] - thumbSide) < abs(sizes[$1] - thumbSide) }!
+        thumbSide = sizes[min(sizes.count - 1, max(0, i + direction))]
         UserDefaults.standard.set(thumbSide, forKey: "photos.thumbSide")
     }
 
-    /// Miniatura de las filas de lista (RAW y vídeos): apaisada, la mitad de
-    /// la de la rejilla. Mismo ajuste para todo el módulo — un solo control.
-    var rowThumbWidth: CGFloat { CGFloat(thumbSide) * 0.5 }
-    var rowThumbHeight: CGFloat { (rowThumbWidth * 0.62).rounded() }
+    /// Las filas de lista usan la MISMA caja que la rejilla: si el control
+    /// dice 256 px, la miniatura mide 256 px también aquí. Antes la lista
+    /// usaba la mitad y el número mostrado no se correspondía con nada.
+    var rowThumbBox: CGFloat { CGFloat(thumbSide) }
 
     func setBest(_ g: DupeGroup, to id: String) {
         guard let idx = groups.firstIndex(where: { $0.id == g.id }),

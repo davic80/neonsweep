@@ -71,17 +71,26 @@ extension PhotosModel {
     }
 
     /// Descarga el AVAsset y lo transcodifica a HEVC según el plan.
+    ///
+    /// `downloading` informa de la bajada desde iCloud, que puede ser la mayor
+    /// parte de la espera y antes no se veía: la barra se quedaba clavada en 0%
+    /// y parecía colgada. `nil` = ya está en local o la descarga terminó.
     nonisolated static func exportVideo(_ asset: PHAsset, plan: TranscodePlan,
                                         isPaused: @escaping @Sendable () -> Bool = { false },
+                                        downloading: @escaping @Sendable (Double?) -> Void = { _ in },
                                         progress: @escaping @Sendable (Double) -> Void) async -> URL? {
         let opts = PHVideoRequestOptions()
         opts.isNetworkAccessAllowed = true    // el original puede estar solo en iCloud
         opts.deliveryMode = .highQualityFormat
+        // Solo se llama si hay descarga real; si el vídeo ya está en disco,
+        // PhotoKit no invoca este handler ni una vez.
+        opts.progressHandler = { fraction, _, _, _ in downloading(fraction) }
         let avAsset: AVAsset? = await withCheckedContinuation { cont in
             PHImageManager.default().requestAVAsset(forVideo: asset, options: opts) { av, _, _ in
                 cont.resume(returning: av)
             }
         }
+        downloading(nil)          // descarga acabada (o nunca hubo)
         guard let avAsset else { return nil }
         let out = FileManager.default.temporaryDirectory
             .appendingPathComponent("neonsweep-\(UUID().uuidString).mov")

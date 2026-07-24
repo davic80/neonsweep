@@ -51,6 +51,11 @@ struct AssetPreview: View {
             .background(Theme.panel)
         }
         .frame(minWidth: 860, minHeight: 600)
+        // Esc cierra. No basta con `.keyboardShortcut(.cancelAction)` en el
+        // botón: al reproducir un vídeo, la vista de AVKit se queda de primer
+        // respondedor y se come la tecla, así que la ventana no se cerraba.
+        // `onExitCommand` la recoge desde la cadena de respondedores.
+        .onExitCommand { player?.pause(); dismiss() }
         .onAppear(perform: load)
         .onDisappear { player?.pause() }
     }

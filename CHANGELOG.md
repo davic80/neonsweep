@@ -2,6 +2,16 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.7.4] — 2026-07-24
+
+### Fixed
+- **Esc did not close the preview** while a video was playing: AVKit's player view becomes first responder and swallows the key, so `.keyboardShortcut(.cancelAction)` on the close button never fired. Handled with `onExitCommand`, which picks it up from the responder chain; the player is paused on the way out.
+- **Portrait photos and videos got square thumbnails**, centre-cropped — heads and feet cut off. Thumbnails now keep the asset's aspect ratio and fit inside the box, so a 9:16 clip renders tall and narrow. List rows reserve the full box width so the filename column stays aligned, and the BEST/KEEP badges and ☆ are anchored to the image rather than to the box.
+
+### Changed
+- Thumbnail sizes are now fixed steps — **64 / 128 / 192 / 256 px** — instead of a free range. A previously saved size snaps to the nearest step.
+- The list rows use the same box as the duplicates grid, so the number shown in the control is the size you actually get.
+
 ## [0.7.3] — 2026-07-24
 
 ### Fixed
