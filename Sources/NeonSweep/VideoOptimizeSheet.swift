@@ -63,7 +63,7 @@ struct VideoOptimizeSheet: View {
                                 || (!willDownscale && model.codecByID[pa.id] == "HEVC ✓"),
                             disabledNote: mine != nil ? t("Already converted by NeonSweep")
                                                       : t("Already HEVC at 1080p or below — nothing left to gain"))
-                Text(t("The original stays 30 days in Recently Deleted; only replaced if it truly shrinks ≥15%."))
+                Text(t("The original stays 30 days in Recently Deleted; only replaced if it really shrinks (≥15%, or ≥10% on MINIMUM)."))
                     .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
             } else {
                 Text(t("video no longer in the list")).font(Theme.body).foregroundStyle(Theme.amber)

@@ -288,6 +288,35 @@ extension PhotosView {
     var optimizableVideos: [PhotoAsset] {
         model.bigVideos.filter { model.codecByID[$0.id] != "HEVC ✓" }
     }
+
+    /// Techo del filtro: el mayor de los que PUEDEN salir en la lista. Usar
+    /// `bigVideos` metía los HEVC ya descartados y el slider llegaba a 7 GB
+    /// cuando el mayor visible no pasaba de 2.
+    var largestVideoBytes: Int64 {
+        optimizableVideos.map(\.fileSize).max() ?? 0
+    }
+
+    /// Lo que se ve en la lista tras los filtros de la barra.
+    ///
+    /// `hideOptimized` quita lo que ya no tiene recorrido: lo que convertimos
+    /// nosotros y lo que la densidad de bitrate marca como COMPACTO. Los HEVC
+    /// ya salían fuera antes, pero con el códec en "?" no se notaba.
+    var shownVideos: [PhotoAsset] {
+        let minBytes = Int64(minVideoMB * 1_000_000)
+        // maxVideoMB == 0 significa "sin techo": es el estado inicial y evita
+        // que la lista salga vacía antes de tocar nada.
+        let maxBytes = maxVideoMB > 0 ? Int64(maxVideoMB * 1_000_000) : Int64.max
+        return optimizableVideos.filter { v in
+            guard v.fileSize >= minBytes, v.fileSize <= maxBytes else { return false }
+            guard hideOptimized else { return true }
+            if ConvertedRegistry.shared.contains(v.id) { return false }
+            if let d = VideoDensity.of(v), d.level == .alreadyTight { return false }
+            return true
+        }
+    }
+
+    /// Cuántos esconde el filtro: sin esto parecería que faltan vídeos.
+    var hiddenVideoCount: Int { optimizableVideos.count - shownVideos.count }
     var hevcVideos: [PhotoAsset] {
         model.bigVideos.filter { model.codecByID[$0.id] == "HEVC ✓" }
     }

@@ -2,6 +2,16 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.8.1] — 2026-07-24
+
+### Added
+- **Video list filters**: `hide optimized` (drops HEVC, anything NeonSweep converted, and COMPACT ones) plus a **min/max size range**. The low end goes after the big files, the high end lets you dig out the short small ones. The ceiling is the largest video that could actually be listed — it used to include already-excluded HEVC files, so the slider ran to 7 GB when nothing visible passed 2.
+- **Delete videos from the list**: a `[ del ]` toggle per row, `[ mark shown (n) ]` for everything the filters currently show, and a running `n marked · size`. Marking for deletion is deliberately separate from the convert checkbox — confusing the two would cost the original. Photos still asks for the final confirmation.
+
+### Changed
+- The "no gain" log line now says the actual percentage and the threshold it missed, instead of only "sin ganancia". Sizes print as real units, so a 900 KB HEIC no longer reads as `0 MB`.
+- **MINIMUM accepts a 10% floor** instead of 15%: it targets ~20%, so a near miss was throwing away the whole conversion after doing all the work.
+
 ## [0.8.0] — 2026-07-24
 
 ### Added

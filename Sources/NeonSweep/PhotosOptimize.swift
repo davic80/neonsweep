@@ -85,6 +85,15 @@ extension PhotosModel {
         }
     }
 
+    /// Ahorro mínimo para que merezca la pena reemplazar el original.
+    ///
+    /// MÍNIMO apunta a ~20%, así que un suelo del 15% descartaría conversiones
+    /// que rozan el objetivo tras haber hecho todo el trabajo. Si has pedido
+    /// explícitamente el perfil suave, un 10% real es una ganancia legítima.
+    nonisolated static func minGainPercent(for profile: VideoProfile) -> Int {
+        profile == .light ? 10 : 15
+    }
+
     /// Cancela un lote que aún no ha empezado.
     func dropQueued(_ id: UUID) { queued.removeAll { $0.id == id } }
 
@@ -128,14 +137,19 @@ extension PhotosModel {
                 failed += 1
                 return
             }
-            // Solo merece la pena si encoge DE VERDAD (mínimo 15%)
-            guard newSize < pa.fileSize * 85 / 100 else {
-                AppLog.log("  \(pa.filename ?? pa.id): sin ganancia (\(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB), se conserva el original")
+            // Solo merece la pena si encoge DE VERDAD: reimportar y borrar por
+            // un 5% mueve el original de sitio sin liberar casi nada.
+            let gain = Int((1 - Double(newSize) / Double(max(1, pa.fileSize))) * 100)
+            let floorPct = Self.minGainPercent(for: profile)
+            guard gain >= floorPct else {
+                AppLog.log("  \(pa.filename ?? pa.id): descartado, solo \(gain)% de ahorro "
+                           + "(\(formatBytes(pa.fileSize)) → \(formatBytes(newSize))); "
+                           + "el mínimo para reemplazar es \(floorPct)%. Se conserva el original.")
                 try? FileManager.default.removeItem(at: outURL)
                 noGain += 1
                 return
             }
-            AppLog.log("  \(pa.filename ?? pa.id): convertido \(pa.fileSize / 1_000_000) MB → \(newSize / 1_000_000) MB")
+            AppLog.log("  \(pa.filename ?? pa.id): convertido \(formatBytes(pa.fileSize)) → \(formatBytes(newSize)) (−\(gain)%)")
             ready.append(Ready(pa: pa, url: outURL, newSize: newSize, video: video))
         }
 

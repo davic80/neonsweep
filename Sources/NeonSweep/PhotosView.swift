@@ -25,6 +25,9 @@ struct PhotosView: View {
         }
     }
     var batchVideoCount: Int { model.videoTargets(for: batchProfile).count }
+    @AppStorage("photos.hideOptimized") var hideOptimized = false
+    @AppStorage("photos.minVideoMB") var minVideoMB = 0.0
+    @AppStorage("photos.maxVideoMB") var maxVideoMB = 0.0   // 0 = sin techo
     @AppStorage("photos.rawLimit") var rawLimit = 50
     @AppStorage("photos.videoLimit") var videoLimit = 50
 
@@ -101,6 +104,96 @@ struct PhotosView: View {
                 .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
         }
         .help(t("Everything converts first; Photos is only touched once, at the end"))
+    }
+
+    /// Filtros de la lista de vídeos: esconder lo que ya no tiene recorrido y
+    /// un suelo de tamaño, porque con cientos de vídeos lo interesante son los
+    /// gordos y lo demás solo estorba.
+    private var videoFilterRow: some View {
+        let ceilingMB = max(1.0, Double(largestVideoBytes) / 1_000_000)
+        // El techo efectivo cuando aún no se ha tocado el slider de máximo
+        let effectiveMax = maxVideoMB > 0 ? maxVideoMB : ceilingMB
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 10) {
+                Button { hideOptimized.toggle() } label: {
+                    Text(hideOptimized ? t("[x] hide optimized") : t("[ ] hide optimized"))
+                        .font(Theme.mono(10, hideOptimized ? .bold : .regular))
+                        .foregroundStyle(hideOptimized ? Theme.neon : Theme.grayDark)
+                        .frame(minHeight: 24).contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .help(t("Hides HEVC, anything NeonSweep already converted, and COMPACT ones"))
+
+                // Dos topes: el de abajo para ir a por los gordos, el de arriba
+                // para rebuscar los cortos y pequeños que quizá sobren.
+                Text(t("size:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                Slider(value: Binding(
+                    get: { min(minVideoMB, effectiveMax) },
+                    set: { minVideoMB = min($0, effectiveMax) }
+                ), in: 0...ceilingMB)
+                .frame(maxWidth: 150).tint(Theme.neon)
+                .accessibilityLabel(t("minimum size"))
+                .accessibilityValue(formatBytes(Int64(minVideoMB * 1_000_000)))
+                Text("…").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                Slider(value: Binding(
+                    get: { effectiveMax },
+                    set: { maxVideoMB = max($0, minVideoMB) }
+                ), in: 0...ceilingMB)
+                .frame(maxWidth: 150).tint(Theme.neon)
+                .accessibilityLabel(t("maximum size"))
+                .accessibilityValue(formatBytes(Int64(effectiveMax * 1_000_000)))
+
+                Text(formatBytes(Int64(minVideoMB * 1_000_000)) + " … "
+                     + formatBytes(Int64(effectiveMax * 1_000_000)))
+                    .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
+                    .fixedSize()
+                if minVideoMB > 0 || maxVideoMB > 0 {
+                    Button { minVideoMB = 0; maxVideoMB = 0 } label: {
+                        Text(t("[ reset ]")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                            .frame(minHeight: 24).contentShape(Rectangle())
+                    }
+                    .buttonStyle(NeonClick())
+                }
+                if hiddenVideoCount > 0 {
+                    Text(String(format: t("// %d hidden"), hiddenVideoCount))
+                        .font(Theme.mono(10)).foregroundStyle(Theme.amber)
+                }
+                Spacer()
+            }
+            videoDeleteRow
+        }
+    }
+
+    /// Marcado y borrado de vídeos enteros, aparte del marcado para convertir:
+    /// son dos intenciones distintas y mezclarlas sería peligroso.
+    @ViewBuilder
+    private var videoDeleteRow: some View {
+        let shown = shownVideos
+        let markedHere = shown.filter { model.selected.contains($0.id) }
+        HStack(spacing: 10) {
+            Text(t("delete:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+            Button {
+                for v in shown { model.selected.insert(v.id) }
+            } label: {
+                Text(String(format: t("[ mark shown (%d) ]"), shown.count))
+                    .font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                    .frame(minHeight: 22).contentShape(Rectangle())
+            }
+            .buttonStyle(NeonClick())
+            .disabled(shown.isEmpty)
+            .help(t("Marks every video currently listed for deletion — the filters decide what that is"))
+            if !markedHere.isEmpty {
+                Button { model.selected.subtract(Set(shown.map(\.id))) } label: {
+                    Text(t("[ unmark ]")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
+                        .frame(minHeight: 22).contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                Text(String(format: t("%d marked · %@"), markedHere.count,
+                            formatBytes(markedHere.map(\.fileSize).reduce(0, +))))
+                    .font(Theme.mono(10, .bold)).foregroundStyle(Theme.amber)
+            }
+            Spacer()
+        }
     }
 
     func sortPicker(_ sel: Binding<MediaSort>, _ asc: Binding<Bool>) -> some View {
@@ -206,7 +299,7 @@ struct PhotosView: View {
     /// Lista sobre la que actúa el teclado según la pestaña visible.
     private func keyboardList() -> [PhotoAsset] {
         switch tab {
-        case .videos: return Array(sorted(optimizableVideos, by: videoSort, asc: videoAsc).prefix(videoLimit))
+        case .videos: return Array(sorted(shownVideos, by: videoSort, asc: videoAsc).prefix(videoLimit))
         default:      return shownRaws
         }
     }
@@ -459,17 +552,18 @@ struct PhotosView: View {
                         Spacer()
                     }
                 }
+                videoFilterRow
                 if optimizableVideos.isEmpty {
                     Text(t("everything already in HEVC ✓"))
                         .font(Theme.body).foregroundStyle(Theme.neonDim)
                 } else {
                     sortPicker($videoSort, $videoAsc)
                 }
-                let shownVideos = Array(sorted(optimizableVideos, by: videoSort, asc: videoAsc).prefix(videoLimit))
+                let shownVideoRows = Array(sorted(shownVideos, by: videoSort, asc: videoAsc).prefix(videoLimit))
                 LazyVStack(alignment: .leading, spacing: 3) {
-                    ForEach(shownVideos) { m in
+                    ForEach(shownVideoRows) { m in
                         VStack(alignment: .leading, spacing: 4) {
-                            assetRow(m, in: shownVideos, key: "video")
+                            assetRow(m, in: shownVideoRows, key: "video")
                             if expandedTwinRow == m.id, let g = model.twinGroup(for: m.id) {
                                 twinComparison(g)
                             }
@@ -483,8 +577,8 @@ struct PhotosView: View {
                             }
                     }
                 }
-                if !optimizableVideos.isEmpty {
-                    moreBar(total: optimizableVideos.count, limit: $videoLimit)
+                if !shownVideos.isEmpty {
+                    moreBar(total: shownVideos.count, limit: $videoLimit)
                 }
                 if !hevcVideos.isEmpty {
                     Button { showHEVC.toggle() } label: {
@@ -619,6 +713,22 @@ struct PhotosView: View {
                     .font(Theme.mono(9, .bold))
                     .foregroundStyle(codec == "HEVC ✓" ? Theme.neonDim
                                      : (codec == nil ? Theme.grayDark : Theme.amber))
+                // Marcar para BORRAR el vídeo entero. Va aparte de la casilla
+                // de la izquierda, que es "convertir": son dos intenciones y
+                // confundirlas costaría el original.
+                let isDel = model.selected.contains(m.id)
+                Button {
+                    if isDel { model.selected.remove(m.id) } else { model.selected.insert(m.id) }
+                } label: {
+                    Text(isDel ? t("[✗ del]") : t("[ del ]"))
+                        .font(Theme.mono(9, isDel ? .bold : .regular))
+                        .foregroundStyle(isDel ? Theme.amber : Theme.grayDark)
+                        .frame(minHeight: 22).contentShape(Rectangle())
+                }
+                .buttonStyle(NeonClick())
+                .help(t("Mark this video for deletion (Photos asks to confirm)"))
+                .accessibilityLabel((m.filename ?? "") + " — " + t("mark for deletion"))
+                .accessibilityValue(isDel ? t("marked") : t("not marked"))
                 // Lo que convertimos nosotros se marca con certeza; el resto,
                 // como mucho, con la pista del bitrate por píxel.
                 if let e = ConvertedRegistry.shared.entry(m.id) {

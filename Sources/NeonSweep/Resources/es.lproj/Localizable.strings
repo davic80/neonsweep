@@ -452,3 +452,23 @@
 "Converted by NeonSweep (%@ → %@)" = "Convertido por NeonSweep (%@ → %@)";
 "Looks already compressed (%.2f bits/pixel)" = "Parece ya comprimido (%.2f bits/píxel)";
 "Everything converts first; Photos is only touched once, at the end" = "Primero se convierte todo; Fotos solo se toca una vez, al final";
+
+/* filtros de la lista de vídeos */
+"[x] hide optimized" = "[x] ocultar optimizados";
+"[ ] hide optimized" = "[ ] ocultar optimizados";
+"Hides HEVC, anything NeonSweep already converted, and COMPACT ones" = "Oculta los HEVC, lo que ya convirtió NeonSweep y los COMPACTOS";
+"[ reset ]" = "[ quitar ]";
+"// %d hidden" = "// %d ocultos";
+"The original stays 30 days in Recently Deleted; only replaced if it really shrinks (≥15%, or ≥10% on MINIMUM)." = "El original queda 30 días en Eliminado recientemente; solo se reemplaza si encoge de verdad (≥15%, o ≥10% en MÍNIMO).";
+"size:" = "tamaño:";
+"minimum size" = "tamaño mínimo";
+"maximum size" = "tamaño máximo";
+"delete:" = "borrar:";
+"[ mark shown (%d) ]" = "[ marcar visibles (%d) ]";
+"Marks every video currently listed for deletion — the filters decide what that is" = "Marca para borrar todos los vídeos que se ven ahora — los filtros deciden cuáles son";
+"[ unmark ]" = "[ desmarcar ]";
+"%d marked · %@" = "%d marcados · %@";
+"[✗ del]" = "[✗ bor]";
+"[ del ]" = "[ bor ]";
+"Mark this video for deletion (Photos asks to confirm)" = "Marcar este vídeo para borrar (Fotos pide confirmación)";
+"mark for deletion" = "marcar para borrar";
