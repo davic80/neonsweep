@@ -2,6 +2,15 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.8.3] — 2026-07-29
+
+### Changed
+- **GitHub release notes now include the Homebrew one-liner and the first-launch (Gatekeeper) steps** in English and Spanish, so people who land on a DMG see the `brew install` option and how to allow the unsigned build via System Settings > Privacy & Security. (Only affects releases from this tag on.)
+- README: screenshots (dashboard, uninstaller, system junk), a first-launch section, the correct three-part `brew install` command, and the module table brought up to the real nine modules.
+
+### Added
+- Tests for the squarified treemap: tiles are proportional to size, stay inside the canvas, and never overlap.
+
 ## [0.8.2] — 2026-07-24
 
 ### Changed

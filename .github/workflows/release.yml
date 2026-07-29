@@ -31,8 +31,25 @@ jobs:
           files: dist/NeonSweep-*.dmg
           generate_release_notes: true
           body: |
-            ⚠️ Unsigned build (ad-hoc). First launch: right-click → Open,
-            or run `xattr -dr com.apple.quarantine /Applications/NeonSweep.app`.
+            ### Install / Instalación
+
+            **Prefer Homebrew? / ¿Prefieres Homebrew?**
+            ```sh
+            brew install --cask davic80/neonsweep/neonsweep
+            ```
+            Or download the DMG below. / O baja el DMG de aquí abajo.
+
+            ### First launch / Primer arranque
+
+            This build is **signed ad-hoc (not notarized)**, so macOS will say it
+            "cannot be opened". This is expected — it only happens once.
+
+            - **EN** — Open **System Settings → Privacy & Security**, scroll to the
+              bottom, click **"Open Anyway"** next to the NeonSweep message, confirm.
+            - **ES** — Abre **Ajustes del Sistema → Privacidad y seguridad**, baja del
+              todo, pulsa **"Abrir igualmente"** junto al mensaje de NeonSweep, confirma.
+
+            Or from Terminal: `xattr -dr com.apple.quarantine /Applications/NeonSweep.app`
 
   # El cask vive en otro repo (el tap), así que necesita su propio token:
   # HOMEBREW_TAP_TOKEN, un PAT fine-grained acotado a davic80/homebrew-neonsweep
