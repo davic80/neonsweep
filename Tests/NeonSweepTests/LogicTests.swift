@@ -140,6 +140,56 @@ import CryptoKit
         #expect(ICloudDupesModel.sha256(of: tmp.path) == expected)
     }
 
+    // MARK: treemap squarified — el único algoritmo geométrico sin cubrir
+
+    private func node(_ path: String, _ size: Int64) -> DiskNode {
+        DiskNode(path: path, name: path, isDir: false, size: size)
+    }
+
+    @Test func treemapIsProportionalContainedAndNonOverlapping() {
+        let canvas = CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        let nodes = [node("a", 500), node("b", 300), node("c", 150),
+                     node("d", 40), node("e", 10)]
+        let tiles = Treemap.layout(nodes, in: canvas)
+
+        // Un tile por nodo con tamaño > 0
+        #expect(tiles.count == nodes.count)
+
+        let totalSize = Double(nodes.map(\.size).reduce(0, +))
+        for tile in tiles {
+            // Cada tile cabe dentro del lienzo (el inset de 1pt ayuda)
+            #expect(canvas.insetBy(dx: -0.5, dy: -0.5).contains(tile.rect),
+                    "\(tile.id) se sale del lienzo: \(tile.rect)")
+            // Área ∝ tamaño. Se suma el inset de 1pt/lado para comparar el
+            // área "real" de la celda con su fracción de bytes.
+            let real = (tile.rect.width + 2) * (tile.rect.height + 2)
+            let expected = Double(tile.node.size) / totalSize * canvas.width * canvas.height
+            #expect(abs(real - expected) / expected < 0.02,
+                    "\(tile.id): área \(real) vs esperada \(expected)")
+        }
+
+        // Sin solapes: las celdas van con inset, así que no deben cruzarse
+        for i in tiles.indices {
+            for j in (i + 1)..<tiles.count {
+                let overlap = tiles[i].rect.intersection(tiles[j].rect)
+                #expect(overlap.isNull || overlap.width < 0.5 || overlap.height < 0.5,
+                        "\(tiles[i].id) y \(tiles[j].id) se solapan: \(overlap)")
+            }
+        }
+    }
+
+    @Test func treemapHandlesDegenerateInput() {
+        let canvas = CGRect(x: 0, y: 0, width: 500, height: 400)
+        #expect(Treemap.layout([], in: canvas).isEmpty, "sin nodos, sin tiles")
+        #expect(Treemap.layout([node("z", 0)], in: canvas).isEmpty,
+                "un nodo de tamaño 0 no ocupa área")
+        // Los de tamaño 0 se descartan pero los demás se colocan
+        let mixed = Treemap.layout([node("big", 100), node("empty", 0)], in: canvas)
+        #expect(mixed.count == 1 && mixed[0].id == "big")
+        // Lienzo degenerado → nada, sin dividir por cero
+        #expect(Treemap.layout([node("a", 10)], in: CGRect(x: 0, y: 0, width: 0.5, height: 9)).isEmpty)
+    }
+
     // MARK: cola de conversiones — FIFO y sin repetir trabajo
 
     /// Pedir otra conversión mientras hay una en marcha ya no se descarta;
