@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION="0.8.1"
+VERSION="0.8.2"
 
 swift build -c release
 

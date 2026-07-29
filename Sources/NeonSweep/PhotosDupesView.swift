@@ -289,29 +289,64 @@ extension PhotosView {
         model.bigVideos.filter { model.codecByID[$0.id] != "HEVC ✓" }
     }
 
-    /// Techo del filtro: el mayor de los que PUEDEN salir en la lista. Usar
-    /// `bigVideos` metía los HEVC ya descartados y el slider llegaba a 7 GB
-    /// cuando el mayor visible no pasaba de 2.
-    var largestVideoBytes: Int64 {
-        optimizableVideos.map(\.fileSize).max() ?? 0
-    }
-
     /// Lo que se ve en la lista tras los filtros de la barra.
     ///
     /// `hideOptimized` quita lo que ya no tiene recorrido: lo que convertimos
     /// nosotros y lo que la densidad de bitrate marca como COMPACTO. Los HEVC
     /// ya salían fuera antes, pero con el códec en "?" no se notaba.
+    /// Tramos de tamaño para los chips. Fronteras redondas; se calcula el
+    /// recuento por tramo y solo se muestran los que tienen vídeos, así que la
+    /// lista de chips se adapta sola a cada biblioteca. Rango en bytes,
+    /// `hi == .max` = sin techo.
+    struct SizeBucket: Identifiable {
+        let id: Int
+        let label: String
+        let lo: Int64
+        let hi: Int64
+        func contains(_ b: Int64) -> Bool { b >= lo && b < hi }
+    }
+
+    /// Fronteras en bytes; el primer y último tramo se abren por los extremos.
+    private static let bucketEdges: [Int64] = [500_000_000, 1_000_000_000, 2_000_000_000]
+
+    /// Los tramos NO vacíos sobre lo que puede listarse, con su recuento.
+    var sizeBuckets: [SizeBucket] {
+        let pool = optimizableVideos.filter(passesHideFilter)
+        let edges = Self.bucketEdges
+        var out: [SizeBucket] = []
+        var lo: Int64 = 0
+        for (i, hi) in (edges + [Int64.max]).enumerated() {
+            let n = pool.filter { $0.fileSize >= lo && $0.fileSize < hi }.count
+            if n > 0 {
+                out.append(SizeBucket(id: i,
+                                      label: Self.bucketLabel(lo: lo, hi: hi) + " (\(n))",
+                                      lo: lo, hi: hi))
+            }
+            lo = hi
+        }
+        return out
+    }
+
+    private static func bucketLabel(lo: Int64, hi: Int64) -> String {
+        if lo == 0 { return "< " + formatBytes(hi) }
+        if hi == Int64.max { return "≥ " + formatBytes(lo) }
+        return formatBytes(lo) + "–" + formatBytes(hi)
+    }
+
+    /// Oculta lo que ya no tiene recorrido (HEVC, convertido, COMPACTO).
+    private func passesHideFilter(_ v: PhotoAsset) -> Bool {
+        guard hideOptimized else { return true }
+        if ConvertedRegistry.shared.contains(v.id) { return false }
+        if let d = VideoDensity.of(v), d.level == .alreadyTight { return false }
+        return true
+    }
+
     var shownVideos: [PhotoAsset] {
-        let minBytes = Int64(minVideoMB * 1_000_000)
-        // maxVideoMB == 0 significa "sin techo": es el estado inicial y evita
-        // que la lista salga vacía antes de tocar nada.
-        let maxBytes = maxVideoMB > 0 ? Int64(maxVideoMB * 1_000_000) : Int64.max
+        let lo = Int64(videoBucketLo)
+        let hi = videoBucketHi == 0 ? Int64.max : Int64(videoBucketHi)
         return optimizableVideos.filter { v in
-            guard v.fileSize >= minBytes, v.fileSize <= maxBytes else { return false }
-            guard hideOptimized else { return true }
-            if ConvertedRegistry.shared.contains(v.id) { return false }
-            if let d = VideoDensity.of(v), d.level == .alreadyTight { return false }
-            return true
+            guard v.fileSize >= lo, v.fileSize < hi else { return false }
+            return passesHideFilter(v)
         }
     }
 

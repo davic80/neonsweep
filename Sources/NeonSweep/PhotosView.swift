@@ -26,8 +26,9 @@ struct PhotosView: View {
     }
     var batchVideoCount: Int { model.videoTargets(for: batchProfile).count }
     @AppStorage("photos.hideOptimized") var hideOptimized = false
-    @AppStorage("photos.minVideoMB") var minVideoMB = 0.0
-    @AppStorage("photos.maxVideoMB") var maxVideoMB = 0.0   // 0 = sin techo
+    // Tramo de tamaño activo, en bytes. lo==0 && hi==0 = todos.
+    @AppStorage("photos.videoBucketLo") var videoBucketLo = 0.0
+    @AppStorage("photos.videoBucketHi") var videoBucketHi = 0.0
     @AppStorage("photos.rawLimit") var rawLimit = 50
     @AppStorage("photos.videoLimit") var videoLimit = 50
 
@@ -110,11 +111,9 @@ struct PhotosView: View {
     /// un suelo de tamaño, porque con cientos de vídeos lo interesante son los
     /// gordos y lo demás solo estorba.
     private var videoFilterRow: some View {
-        let ceilingMB = max(1.0, Double(largestVideoBytes) / 1_000_000)
-        // El techo efectivo cuando aún no se ha tocado el slider de máximo
-        let effectiveMax = maxVideoMB > 0 ? maxVideoMB : ceilingMB
+        let buckets = sizeBuckets
         return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Button { hideOptimized.toggle() } label: {
                     Text(hideOptimized ? t("[x] hide optimized") : t("[ ] hide optimized"))
                         .font(Theme.mono(10, hideOptimized ? .bold : .regular))
@@ -124,44 +123,39 @@ struct PhotosView: View {
                 .buttonStyle(NeonClick())
                 .help(t("Hides HEVC, anything NeonSweep already converted, and COMPACT ones"))
 
-                // Dos topes: el de abajo para ir a por los gordos, el de arriba
-                // para rebuscar los cortos y pequeños que quizá sobren.
                 Text(t("size:")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-                Slider(value: Binding(
-                    get: { min(minVideoMB, effectiveMax) },
-                    set: { minVideoMB = min($0, effectiveMax) }
-                ), in: 0...ceilingMB)
-                .frame(maxWidth: 150).tint(Theme.neon)
-                .accessibilityLabel(t("minimum size"))
-                .accessibilityValue(formatBytes(Int64(minVideoMB * 1_000_000)))
-                Text("…").font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-                Slider(value: Binding(
-                    get: { effectiveMax },
-                    set: { maxVideoMB = max($0, minVideoMB) }
-                ), in: 0...ceilingMB)
-                .frame(maxWidth: 150).tint(Theme.neon)
-                .accessibilityLabel(t("maximum size"))
-                .accessibilityValue(formatBytes(Int64(effectiveMax * 1_000_000)))
-
-                Text(formatBytes(Int64(minVideoMB * 1_000_000)) + " … "
-                     + formatBytes(Int64(effectiveMax * 1_000_000)))
-                    .font(Theme.mono(11, .bold)).foregroundStyle(Theme.neon)
-                    .fixedSize()
-                if minVideoMB > 0 || maxVideoMB > 0 {
-                    Button { minVideoMB = 0; maxVideoMB = 0 } label: {
-                        Text(t("[ reset ]")).font(Theme.mono(10)).foregroundStyle(Theme.grayDark)
-                            .frame(minHeight: 24).contentShape(Rectangle())
-                    }
-                    .buttonStyle(NeonClick())
-                }
-                if hiddenVideoCount > 0 {
-                    Text(String(format: t("// %d hidden"), hiddenVideoCount))
-                        .font(Theme.mono(10)).foregroundStyle(Theme.amber)
+                    .padding(.leading, 6)
+                // Un solo clic por tramo: sin arrastrar pulgares. Los tramos
+                // vacíos no aparecen, así que la fila se adapta a la biblioteca.
+                sizeChip(t("[ all ]"), lo: 0, hi: 0)
+                ForEach(buckets) { b in
+                    sizeChip("[ \(b.label) ]",
+                             lo: Double(b.lo),
+                             hi: b.hi == Int64.max ? 0 : Double(b.hi))
                 }
                 Spacer()
             }
             videoDeleteRow
         }
+    }
+
+    /// Chip de tramo de tamaño. Activo = el tramo cuyo lo/hi coincide con el
+    /// guardado; "todos" es 0/0.
+    private func sizeChip(_ label: String, lo: Double, hi: Double) -> some View {
+        let active = videoBucketLo == lo && videoBucketHi == hi
+        return Button {
+            videoBucketLo = lo; videoBucketHi = hi
+        } label: {
+            Text(label)
+                .font(Theme.mono(10, active ? .bold : .regular))
+                .foregroundStyle(active ? Theme.neon : Theme.grayDark)
+                .padding(.vertical, 3).padding(.horizontal, 6)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                    active ? Theme.neon : Theme.border, lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NeonClick())
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     /// Marcado y borrado de vídeos enteros, aparte del marcado para convertir:

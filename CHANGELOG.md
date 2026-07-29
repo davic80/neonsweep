@@ -2,6 +2,11 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.8.2] — 2026-07-24
+
+### Changed
+- **The video size filter is now bucket chips instead of a dual slider.** Two separate slider tracks never read as one range and gave no sense of where the videos actually were. The chips — `[ all ] [ < 500 MB (433) ] [ 500 MB–1 GB (1) ] [ 1 GB–2 GB (2) ]` — are one click, show the count per band, and only appear for non-empty bands, so the row adapts to each library. Since these videos are all >100 MB, a continuous slider wasted most of its travel on an empty region anyway.
+
 ## [0.8.1] — 2026-07-24
 
 ### Added
