@@ -42,6 +42,7 @@ struct DashboardView: View {
             Spacer()
             Button {
                 model.scan()
+                purge.list()   // recontar snapshots, no solo la barra de disco
             } label: {
                 Text(model.scanning ? t("[ SCANNING… ]") : t("[ RESCAN ]"))
                     .font(Theme.mono(12, .bold))
@@ -70,8 +71,20 @@ struct DashboardView: View {
                 Text("TOTAL \(formatBytes(d.total))")
                     .font(Theme.small).foregroundStyle(Theme.gray)
             }
+            // Los datos no son en vivo: se leen al abrir la app o al RE-ESCANEAR.
+            // Sin esto, un número congelado parecía un fallo (p. ej. "el purgable
+            // no baja" cuando en realidad la lectura era de horas antes).
+            if let ts = model.lastScan {
+                Text(String(format: t("// measured at %@ · press [ RESCAN ] to refresh"),
+                            Self.clock.string(from: ts)))
+                    .font(Theme.mono(9)).foregroundStyle(Theme.grayDark)
+            }
         }
     }
+
+    private static let clock: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
+    }()
 
     // MARK: Purgable
 

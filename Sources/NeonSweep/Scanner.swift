@@ -29,6 +29,7 @@ struct JunkItem: Identifiable {
 @MainActor
 final class ScanModel: ObservableObject {
     @Published var disk = DiskSnapshot()
+    @Published var lastScan: Date?   // cuándo se leyó el disco (no es en vivo)
     @Published var icloud = ICloudSnapshot()
     @Published var items: [JunkItem] = []
     @Published var scanning = false
@@ -76,6 +77,7 @@ final class ScanModel: ObservableObject {
         Task {
             // Disco: instantáneo
             self.disk = Self.diskSnapshot()
+            self.lastScan = Date()   // los datos no son en vivo; se sella cuándo
 
             // iCloud quota en paralelo
             Task.detached(priority: .utility) {

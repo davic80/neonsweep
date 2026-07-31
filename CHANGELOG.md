@@ -2,6 +2,14 @@
 
 All notable changes to NeonSweep. Format based on [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.8.4] — 2026-08-01
+
+### Added
+- **Dashboard disk figures now carry a timestamp** — "measured at HH:MM · press [ RESCAN ] to refresh". The numbers are read once, on launch or on rescan, not live; without a timestamp a stale reading looked like a bug (e.g. "purgeable isn't going down" when the figure was simply hours old).
+
+### Fixed
+- **[ RESCAN ] now recounts Time Machine snapshots too**, not just the disk bar. Before, the snapshot count only refreshed when you re-entered the dashboard.
+
 ## [0.8.3] — 2026-07-29
 
 ### Changed
